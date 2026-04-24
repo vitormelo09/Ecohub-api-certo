@@ -1,5 +1,21 @@
 const db = require("../config/db");
+const jwt = require("jsonwebtoken");
 
+const SECRET = process.env.JWT_SECRET || "segredo_super_secreto";
+
+function montarUrlFoto(req, fotoPerfil) {
+  if (!fotoPerfil) return null;
+
+  if (fotoPerfil.startsWith("http")) {
+    return fotoPerfil;
+  }
+
+  return `${req.protocol}://${req.get("host")}${fotoPerfil}`;
+}
+
+/* ================================
+   LISTAR POSTS
+================================ */
 exports.getPosts = (req, res) => {
   const authHeader = req.headers.authorization;
   let usuarioId = null;
@@ -7,8 +23,6 @@ exports.getPosts = (req, res) => {
   if (authHeader) {
     try {
       const token = authHeader.split(" ")[1];
-      const jwt = require("jsonwebtoken");
-      const SECRET = process.env.JWT_SECRET || "segredo_super_secreto";
       const decoded = jwt.verify(token, SECRET);
       usuarioId = decoded.id;
     } catch (_) {
@@ -17,13 +31,15 @@ exports.getPosts = (req, res) => {
   }
 
   const sql = `
-    SELECT
+    SELECT 
       p.id,
       p.usuario_id,
       p.conteudo,
       p.imagem_url,
       p.data_publicacao,
       u.nome,
+      u.email,
+      u.foto_perfil,
       COUNT(DISTINCT l.id) AS likes,
       ${
         usuarioId
@@ -33,28 +49,60 @@ exports.getPosts = (req, res) => {
     FROM posts p
     JOIN users u ON p.usuario_id = u.id
     LEFT JOIN likes l ON l.post_id = p.id
-    GROUP BY p.id, p.usuario_id, p.conteudo, p.imagem_url, p.data_publicacao, u.nome
+    GROUP BY 
+      p.id,
+      p.usuario_id,
+      p.conteudo,
+      p.imagem_url,
+      p.data_publicacao,
+      u.nome,
+      u.email,
+      u.foto_perfil
     ORDER BY p.data_publicacao DESC
   `;
 
   db.query(sql, (err, results) => {
     if (err) {
-      return res.status(500).json({ erro: err.message });
+      return res.status(500).json({
+        erro: err.message
+      });
     }
 
-    res.json(results);
+    const posts = results.map((post) => ({
+      ...post,
+      foto_perfil_url: montarUrlFoto(req, post.foto_perfil)
+    }));
+
+    res.json(posts);
   });
 };
 
+/* ================================
+   CRIAR POST
+================================ */
 exports.createPost = (req, res) => {
   const { conteudo } = req.body;
   const usuario_id = req.user.id;
   const imagem_url = req.file ? req.file.filename : null;
 
-  const sql = "INSERT INTO posts (usuario_id, conteudo, imagem_url) VALUES (?, ?, ?)";
+  if (!conteudo || !conteudo.trim()) {
+    return res.status(400).json({
+      erro: "O conteúdo do post é obrigatório."
+    });
+  }
 
-  db.query(sql, [usuario_id, conteudo, imagem_url], (err, result) => {
-    if (err) return res.status(500).json({ erro: err.message });
+  const sql = `
+    INSERT INTO posts 
+    (usuario_id, conteudo, imagem_url)
+    VALUES (?, ?, ?)
+  `;
+
+  db.query(sql, [usuario_id, conteudo.trim(), imagem_url], (err, result) => {
+    if (err) {
+      return res.status(500).json({
+        erro: err.message
+      });
+    }
 
     res.status(201).json({
       mensagem: "Post criado!",
@@ -63,25 +111,102 @@ exports.createPost = (req, res) => {
   });
 };
 
+/* ================================
+   EDITAR POST
+================================ */
+exports.updatePost = (req, res) => {
+  const { id } = req.params;
+  const { conteudo } = req.body;
+  const usuario_id = req.user.id;
+
+  if (!conteudo || !conteudo.trim()) {
+    return res.status(400).json({
+      erro: "O conteúdo do post é obrigatório."
+    });
+  }
+
+  const verificarSql = `
+    SELECT *
+    FROM posts
+    WHERE id = ?
+    AND usuario_id = ?
+  `;
+
+  db.query(verificarSql, [id, usuario_id], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: err.message
+      });
+    }
+
+    if (results.length === 0) {
+      return res.status(403).json({
+        erro: "Você não tem permissão para editar este post."
+      });
+    }
+
+    const atualizarSql = `
+      UPDATE posts
+      SET conteudo = ?
+      WHERE id = ?
+      AND usuario_id = ?
+    `;
+
+    db.query(atualizarSql, [conteudo.trim(), id, usuario_id], (errUpdate) => {
+      if (errUpdate) {
+        return res.status(500).json({
+          erro: errUpdate.message
+        });
+      }
+
+      res.json({
+        mensagem: "Post editado com sucesso!",
+        post: {
+          id: Number(id),
+          usuario_id,
+          conteudo: conteudo.trim()
+        }
+      });
+    });
+  });
+};
+
+/* ================================
+   DELETAR POST
+================================ */
 exports.deletePost = (req, res) => {
   const { id } = req.params;
   const usuario_id = req.user.id;
 
   db.query("SELECT * FROM posts WHERE id = ?", [id], (err, results) => {
-    if (err) return res.status(500).json({ erro: err.message });
-
-    if (results.length === 0) {
-      return res.status(404).json({ erro: "Post não encontrado" });
+    if (err) {
+      return res.status(500).json({
+        erro: err.message
+      });
     }
 
-    if (results[0].usuario_id !== usuario_id) {
-      return res.status(403).json({ erro: "Você não tem permissão para deletar este post" });
+    if (results.length === 0) {
+      return res.status(404).json({
+        erro: "Post não encontrado"
+      });
+    }
+
+    if (Number(results[0].usuario_id) !== Number(usuario_id)) {
+      return res.status(403).json({
+        erro: "Você não tem permissão para deletar este post"
+      });
     }
 
     db.query("DELETE FROM posts WHERE id = ?", [id], (err2) => {
-      if (err2) return res.status(500).json({ erro: err2.message });
+      if (err2) {
+        return res.status(500).json({
+          erro: err2.message
+        });
+      }
 
-      res.json({ mensagem: "Post removido!" });
+      res.json({
+        mensagem: "Post removido!"
+      });
     });
   });
 };
