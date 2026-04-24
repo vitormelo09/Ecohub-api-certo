@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+
 const projectController = require("../controllers/projectController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
@@ -17,31 +18,18 @@ const upload = require("../middlewares/uploadMiddleware");
  *           type: string
  *         descricao:
  *           type: string
- *         link_projeto:
+ *         link_github:
+ *           type: string
+ *         tecnologias_usadas:
  *           type: string
  *         imagem:
  *           type: string
- *       example:
- *         titulo: Plataforma Sustentável
- *         descricao: Projeto de impacto ambiental
  */
 
-/**
- * @swagger
- * /api/projects:
- *   get:
- *     summary: Lista todos os projetos
- *     tags: [Projects]
- */
+// Listar projetos ordenados por curtidas
 router.get("/", projectController.getProjects);
 
-/**
- * @swagger
- * /api/projects:
- *   post:
- *     summary: Criar um novo projeto
- *     tags: [Projects]
- */
+// Criar projeto
 router.post(
   "/",
   authMiddleware,
@@ -49,13 +37,10 @@ router.post(
   projectController.createProject
 );
 
-/**
- * @swagger
- * /api/projects/{id}:
- *   delete:
- *     summary: Deletar projeto
- *     tags: [Projects]
- */
+// Curtir ou remover curtida do projeto
+router.post("/:id/like", authMiddleware, projectController.toggleProjectLike);
+
+// Deletar projeto
 router.delete("/:id", authMiddleware, projectController.deleteProject);
 
 module.exports = router;

@@ -69,7 +69,7 @@ router.get("/search", authMiddleware, userController.searchUsers);
 // Meu perfil
 router.get("/me", authMiddleware, userController.getMe);
 
-// Atualizar meu perfil
+// Atualizar meu perfil, incluindo foto
 router.put(
   "/me",
   authMiddleware,
