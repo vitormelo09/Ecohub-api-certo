@@ -1,36 +1,30 @@
 const express = require("express");
 const router = express.Router();
 
-const newsController = require("../controllers/newsController");
+const adminController = require("../controllers/adminController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const adminMiddleware = require("../middlewares/adminMiddleware");
 
 /* ================================
-   LISTAR NOTÍCIAS
-   Qualquer pessoa pode ver
-================================ */
-router.get("/", newsController.getNews);
-
-/* ================================
-   CRIAR NOTÍCIA
+   LISTAR USUÁRIOS
    Apenas admin
 ================================ */
-router.post(
-  "/",
+router.get(
+  "/users",
   authMiddleware,
   adminMiddleware,
-  newsController.createNews
+  adminController.listarUsuarios
 );
 
 /* ================================
-   EXCLUIR NOTÍCIA
+   ALTERAR TIPO DO USUÁRIO
    Apenas admin
 ================================ */
-router.delete(
-  "/:id",
+router.put(
+  "/users/:id/tipo",
   authMiddleware,
   adminMiddleware,
-  newsController.deleteNews
+  adminController.alterarTipoUsuario
 );
 
 module.exports = router;

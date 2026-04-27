@@ -5,45 +5,46 @@ const eventController = require("../controllers/eventController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const adminMiddleware = require("../middlewares/adminMiddleware");
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     Event:
- *       type: object
- *       properties:
- *         id:
- *           type: integer
- *         titulo:
- *           type: string
- *         descricao:
- *           type: string
- *         data:
- *           type: string
- *       example:
- *         titulo: Feira de Ciências
- *         descricao: Evento anual de apresentação de projetos científicos.
- *         data: 2026-04-20
- */
-
-/**
- * @swagger
- * /api/events:
- *   get:
- *     summary: Lista todos os eventos
- *     tags: [Events]
- */
+/* ================================
+   LISTAR EVENTOS
+   Qualquer pessoa pode ver
+================================ */
 router.get("/", eventController.getEvents);
 
-/**
- * @swagger
- * /api/events:
- *   post:
- *     summary: Criar evento (APENAS ADMIN)
- *     tags: [Events]
- *     security:
- *       - bearerAuth: []
- */
+/* ================================
+   MEUS EVENTOS
+   Usuário logado
+================================ */
+router.get(
+  "/meus-eventos",
+  authMiddleware,
+  eventController.getMeusEventos
+);
+
+/* ================================
+   CONFIRMAR PRESENÇA
+   Usuário logado
+================================ */
+router.post(
+  "/:id/confirmar",
+  authMiddleware,
+  eventController.confirmarPresenca
+);
+
+/* ================================
+   CANCELAR PRESENÇA
+   Usuário logado
+================================ */
+router.delete(
+  "/:id/confirmar",
+  authMiddleware,
+  eventController.cancelarPresenca
+);
+
+/* ================================
+   CRIAR EVENTO
+   Apenas admin
+================================ */
 router.post(
   "/",
   authMiddleware,
@@ -51,15 +52,10 @@ router.post(
   eventController.createEvent
 );
 
-/**
- * @swagger
- * /api/events/{id}:
- *   delete:
- *     summary: Deletar evento (APENAS ADMIN)
- *     tags: [Events]
- *     security:
- *       - bearerAuth: []
- */
+/* ================================
+   EXCLUIR EVENTO
+   Apenas admin
+================================ */
 router.delete(
   "/:id",
   authMiddleware,

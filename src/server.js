@@ -27,6 +27,7 @@ const commentRoutes = require("./routes/commentRoutes");
 const likeRoutes = require("./routes/likeRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const homeRoutes = require("./routes/homeRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 // --- SWAGGER ---
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
@@ -46,6 +47,7 @@ app.use("/api/comments", commentRoutes);
 app.use("/api/likes", likeRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/home", homeRoutes);
+app.use("/api/admin", adminRoutes);
 
 // --- TESTE DE CONEXÃO COM O BANCO ---
 app.get("/teste-banco", (req, res) => {
