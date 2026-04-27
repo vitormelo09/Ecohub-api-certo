@@ -4,6 +4,13 @@ const jwt = require("jsonwebtoken");
 
 const SECRET = process.env.JWT_SECRET || "segredo_super_secreto";
 
+/* ================================
+   E-MAILS QUE SEMPRE SERÃO ADMIN
+================================ */
+const emailsAdmins = [
+  "238482024@eniac.edu.br"
+];
+
 function montarUrlFoto(req, fotoPerfil) {
   if (!fotoPerfil) return null;
 
@@ -25,6 +32,8 @@ exports.getUsers = (req, res) => {
       email,
       tipo,
       bio,
+      curso,
+      semestre,
       foto_perfil,
       data_criacao
     FROM users
@@ -65,6 +74,8 @@ exports.searchUsers = (req, res) => {
       u.email,
       u.tipo,
       u.bio,
+      u.curso,
+      u.semestre,
       u.foto_perfil,
       EXISTS (
         SELECT 1
@@ -117,6 +128,8 @@ exports.getMe = (req, res) => {
       u.email,
       u.tipo,
       u.bio,
+      u.curso,
+      u.semestre,
       u.foto_perfil,
       u.data_criacao,
 
@@ -178,6 +191,8 @@ exports.getUserProfile = (req, res) => {
       u.email,
       u.tipo,
       u.bio,
+      u.curso,
+      u.semestre,
       u.foto_perfil,
       u.data_criacao,
 
@@ -237,7 +252,7 @@ exports.getUserProfile = (req, res) => {
 ================================ */
 exports.updateMyProfile = (req, res) => {
   const usuarioId = req.user.id;
-  const { nome, bio } = req.body;
+  const { nome, bio, curso, semestre } = req.body;
 
   if (!nome || !nome.trim()) {
     return res.status(400).json({
@@ -257,26 +272,39 @@ exports.updateMyProfile = (req, res) => {
   if (fotoPerfil) {
     sql = `
       UPDATE users
-      SET nome = ?, bio = ?, foto_perfil = ?
+      SET 
+        nome = ?,
+        bio = ?,
+        curso = ?,
+        semestre = ?,
+        foto_perfil = ?
       WHERE id = ?
     `;
 
     params = [
       nome.trim(),
       bio ? bio.trim() : "",
+      curso ? curso.trim() : "",
+      semestre ? semestre.trim() : "",
       fotoPerfil,
       usuarioId
     ];
   } else {
     sql = `
       UPDATE users
-      SET nome = ?, bio = ?
+      SET 
+        nome = ?,
+        bio = ?,
+        curso = ?,
+        semestre = ?
       WHERE id = ?
     `;
 
     params = [
       nome.trim(),
       bio ? bio.trim() : "",
+      curso ? curso.trim() : "",
+      semestre ? semestre.trim() : "",
       usuarioId
     ];
   }
@@ -284,7 +312,8 @@ exports.updateMyProfile = (req, res) => {
   db.query(sql, params, (err) => {
     if (err) {
       return res.status(500).json({
-        erro: err.message
+        erro: "Erro ao atualizar perfil",
+        detalhes: err.message
       });
     }
 
@@ -295,6 +324,8 @@ exports.updateMyProfile = (req, res) => {
         u.email,
         u.tipo,
         u.bio,
+        u.curso,
+        u.semestre,
         u.foto_perfil,
         u.data_criacao,
 
@@ -323,7 +354,14 @@ exports.updateMyProfile = (req, res) => {
     db.query(buscarSql, [usuarioId], (errBusca, results) => {
       if (errBusca) {
         return res.status(500).json({
-          erro: errBusca.message
+          erro: "Erro ao buscar perfil atualizado",
+          detalhes: errBusca.message
+        });
+      }
+
+      if (results.length === 0) {
+        return res.status(404).json({
+          erro: "Usuário não encontrado"
         });
       }
 
@@ -345,7 +383,7 @@ exports.updateMyProfile = (req, res) => {
 ================================ */
 exports.createUser = async (req, res) => {
   try {
-    const { nome, email, senha } = req.body;
+    const { nome, email, senha, curso, semestre } = req.body;
 
     if (!nome || !email || !senha) {
       return res.status(400).json({
@@ -353,26 +391,76 @@ exports.createUser = async (req, res) => {
       });
     }
 
+    const emailNormalizado = email.toLowerCase().trim().replace(/\s/g, "");
+
+    const tipo = emailsAdmins.includes(emailNormalizado)
+      ? "admin"
+      : "aluno";
+
     const senhaHash = await bcrypt.hash(senha, 10);
 
-    const sql = `
-      INSERT INTO users 
-      (nome, email, senha, bio, foto_perfil)
-      VALUES (?, ?, ?, ?, ?)
+    const sqlVerificar = `
+      SELECT id
+      FROM users
+      WHERE email = ?
     `;
 
-    db.query(sql, [nome, email, senhaHash, "", null], (err, result) => {
-      if (err) {
+    db.query(sqlVerificar, [emailNormalizado], (errVerificar, results) => {
+      if (errVerificar) {
         return res.status(500).json({
-          erro: "Erro no banco de dados",
-          detalhes: err.message
+          erro: "Erro ao verificar email",
+          detalhes: errVerificar.message
         });
       }
 
-      res.status(201).json({
-        mensagem: "Usuário criado com sucesso",
-        id: result.insertId
-      });
+      if (results.length > 0) {
+        return res.status(400).json({
+          erro: "Este email já está cadastrado"
+        });
+      }
+
+      const sql = `
+        INSERT INTO users 
+        (nome, email, senha, tipo, bio, curso, semestre, foto_perfil)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      db.query(
+        sql,
+        [
+          nome,
+          emailNormalizado,
+          senhaHash,
+          tipo,
+          "",
+          curso || "",
+          semestre || "",
+          null
+        ],
+        (err, result) => {
+          if (err) {
+            return res.status(500).json({
+              erro: "Erro no banco de dados",
+              detalhes: err.message
+            });
+          }
+
+          res.status(201).json({
+            mensagem: "Usuário criado com sucesso",
+            id: result.insertId,
+            usuario: {
+              id: result.insertId,
+              nome,
+              email: emailNormalizado,
+              tipo,
+              bio: "",
+              curso: curso || "",
+              semestre: semestre || "",
+              foto_perfil: null
+            }
+          });
+        }
+      );
     });
   } catch (error) {
     res.status(500).json({
@@ -387,13 +475,15 @@ exports.createUser = async (req, res) => {
 exports.login = (req, res) => {
   const { email, senha } = req.body;
 
+  const emailNormalizado = email.toLowerCase().trim().replace(/\s/g, "");
+
   const sql = `
     SELECT *
     FROM users
     WHERE email = ?
   `;
 
-  db.query(sql, [email], async (err, results) => {
+  db.query(sql, [emailNormalizado], async (err, results) => {
     if (err) {
       return res.status(500).json({
         erro: err.message
@@ -435,6 +525,8 @@ exports.login = (req, res) => {
         u.email,
         u.tipo,
         u.bio,
+        u.curso,
+        u.semestre,
         u.foto_perfil,
         u.data_criacao,
 

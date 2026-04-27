@@ -34,6 +34,15 @@ router.get("/", postController.getPosts);
 
 /**
  * @swagger
+ * /api/posts/meus:
+ *   get:
+ *     summary: Lista os posts do usuário logado
+ *     tags: [Posts]
+ */
+router.get("/meus", authMiddleware, postController.getMyPosts);
+
+/**
+ * @swagger
  * /api/posts:
  *   post:
  *     summary: Criar um novo post
@@ -45,6 +54,15 @@ router.post(
   upload.single("imagem"),
   postController.createPost
 );
+
+/**
+ * @swagger
+ * /api/posts/{id}:
+ *   put:
+ *     summary: Editar post
+ *     tags: [Posts]
+ */
+router.put("/:id", authMiddleware, postController.updatePost);
 
 /**
  * @swagger

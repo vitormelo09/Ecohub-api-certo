@@ -1,5 +1,8 @@
 const db = require("../config/db");
 
+/* ================================
+   LISTAR TODOS OS PROJETOS
+================================ */
 exports.getProjects = (req, res) => {
   const sql = `
     SELECT 
@@ -29,6 +32,45 @@ exports.getProjects = (req, res) => {
   });
 };
 
+/* ================================
+   LISTAR MEUS PROJETOS
+================================ */
+exports.getMyProjects = (req, res) => {
+  const usuario_id = req.user.id;
+
+  const sql = `
+    SELECT 
+      p.*,
+      u.nome AS autor_nome,
+      COALESCE(l.total_curtidas, 0) AS curtidas
+    FROM projects p
+    LEFT JOIN users u ON u.id = p.usuario_id
+    LEFT JOIN (
+      SELECT 
+        project_id, 
+        COUNT(*) AS total_curtidas
+      FROM project_likes
+      GROUP BY project_id
+    ) l ON l.project_id = p.id
+    WHERE p.usuario_id = ?
+    ORDER BY p.data_criacao DESC
+  `;
+
+  db.query(sql, [usuario_id], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar seus projetos",
+        detalhes: err.message
+      });
+    }
+
+    res.json(results);
+  });
+};
+
+/* ================================
+   CRIAR PROJETO
+================================ */
 exports.createProject = (req, res) => {
   const { titulo, descricao, link_github, tecnologias_usadas } = req.body;
   const usuario_id = req.user.id;
@@ -77,6 +119,9 @@ exports.createProject = (req, res) => {
   );
 };
 
+/* ================================
+   CURTIR / REMOVER CURTIDA
+================================ */
 exports.toggleProjectLike = (req, res) => {
   const projectId = Number(req.params.id);
   const usuarioId = req.user.id;
@@ -160,6 +205,10 @@ function buscarTotalCurtidas(projectId, res, curtido) {
     });
   });
 }
+
+/* ================================
+   DELETAR PROJETO
+================================ */
 exports.deleteProject = (req, res) => {
   const { id } = req.params;
   const usuario_id = req.user.id;

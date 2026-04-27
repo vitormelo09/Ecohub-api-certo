@@ -13,8 +13,22 @@ function montarUrlFoto(req, fotoPerfil) {
   return `${req.protocol}://${req.get("host")}${fotoPerfil}`;
 }
 
+function montarUrlImagemPost(req, imagemUrl) {
+  if (!imagemUrl) return null;
+
+  if (imagemUrl.startsWith("http")) {
+    return imagemUrl;
+  }
+
+  if (imagemUrl.startsWith("/uploads")) {
+    return `${req.protocol}://${req.get("host")}${imagemUrl}`;
+  }
+
+  return `${req.protocol}://${req.get("host")}/uploads/${imagemUrl}`;
+}
+
 /* ================================
-   LISTAR POSTS
+   LISTAR TODOS OS POSTS
 ================================ */
 exports.getPosts = (req, res) => {
   const authHeader = req.headers.authorization;
@@ -70,7 +84,59 @@ exports.getPosts = (req, res) => {
 
     const posts = results.map((post) => ({
       ...post,
-      foto_perfil_url: montarUrlFoto(req, post.foto_perfil)
+      foto_perfil_url: montarUrlFoto(req, post.foto_perfil),
+      imagem_post_url: montarUrlImagemPost(req, post.imagem_url)
+    }));
+
+    res.json(posts);
+  });
+};
+
+/* ================================
+   LISTAR MEUS POSTS
+================================ */
+exports.getMyPosts = (req, res) => {
+  const usuarioId = req.user.id;
+
+  const sql = `
+    SELECT 
+      p.id,
+      p.usuario_id,
+      p.conteudo,
+      p.imagem_url,
+      p.data_publicacao,
+      u.nome,
+      u.email,
+      u.foto_perfil,
+      COUNT(DISTINCT l.id) AS likes
+    FROM posts p
+    JOIN users u ON p.usuario_id = u.id
+    LEFT JOIN likes l ON l.post_id = p.id
+    WHERE p.usuario_id = ?
+    GROUP BY 
+      p.id,
+      p.usuario_id,
+      p.conteudo,
+      p.imagem_url,
+      p.data_publicacao,
+      u.nome,
+      u.email,
+      u.foto_perfil
+    ORDER BY p.data_publicacao DESC
+  `;
+
+  db.query(sql, [usuarioId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar seus posts",
+        detalhes: err.message
+      });
+    }
+
+    const posts = results.map((post) => ({
+      ...post,
+      foto_perfil_url: montarUrlFoto(req, post.foto_perfil),
+      imagem_post_url: montarUrlImagemPost(req, post.imagem_url)
     }));
 
     res.json(posts);

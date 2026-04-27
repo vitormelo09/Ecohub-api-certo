@@ -26,8 +26,11 @@ const upload = require("../middlewares/uploadMiddleware");
  *           type: string
  */
 
-// Listar projetos ordenados por curtidas
+// Listar todos os projetos
 router.get("/", projectController.getProjects);
+
+// Listar projetos do usuário logado
+router.get("/meus", authMiddleware, projectController.getMyProjects);
 
 // Criar projeto
 router.post(
