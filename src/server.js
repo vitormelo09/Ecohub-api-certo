@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const swaggerUi = require("swagger-ui-express");
 const swaggerDocs = require("./docs/swagger");
@@ -13,9 +14,10 @@ const PORT = 3000;
 // --- MIDDLEWARES ---
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Liberar acesso às imagens salvas na pasta uploads
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // --- IMPORTAÇÃO DE ROTAS ---
 const userRoutes = require("./routes/useRoutes");

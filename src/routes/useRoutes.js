@@ -26,7 +26,7 @@ const storage = multer.diskStorage({
   },
 
   filename: (req, file, cb) => {
-    const extensao = path.extname(file.originalname);
+    const extensao = path.extname(file.originalname).toLowerCase();
     const nomeArquivo = `perfil-${Date.now()}-${Math.round(Math.random() * 1e9)}${extensao}`;
 
     cb(null, nomeArquivo);
@@ -73,7 +73,18 @@ router.get("/me", authMiddleware, userController.getMe);
 router.put(
   "/me",
   authMiddleware,
-  upload.single("foto"),
+  (req, res, next) => {
+    upload.single("foto")(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          erro: "Erro ao enviar imagem",
+          detalhes: err.message
+        });
+      }
+
+      next();
+    });
+  },
   userController.updateMyProfile
 );
 
