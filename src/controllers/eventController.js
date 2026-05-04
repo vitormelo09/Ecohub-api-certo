@@ -16,6 +16,7 @@ exports.getEvents = (req, res) => {
       e.imagem,
       e.imagem_url,
       e.capacidade,
+      e.confirmados,
       e.criador_id,
       e.data_criacao,
       COUNT(ep.id) AS participantes
@@ -32,6 +33,7 @@ exports.getEvents = (req, res) => {
       e.imagem,
       e.imagem_url,
       e.capacidade,
+      e.confirmados,
       e.criador_id,
       e.data_criacao
     ORDER BY e.data_evento ASC
@@ -62,14 +64,17 @@ exports.createEvent = (req, res) => {
     horario,
     local,
     imagem,
+    imagem_url,
     capacidade
   } = req.body;
 
   const criador_id = req.user.id;
 
-  if (!titulo || !data || !local) {
+  const imagemFinal = imagem_url || imagem;
+
+  if (!titulo || !data || !local || !imagemFinal || !capacidade) {
     return res.status(400).json({
-      erro: "Título, data e local são obrigatórios."
+      erro: "Título, data, local, imagem e capacidade são obrigatórios."
     });
   }
 
@@ -83,10 +88,12 @@ exports.createEvent = (req, res) => {
       horario,
       local,
       imagem,
+      imagem_url,
       capacidade,
+      confirmados,
       criador_id
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
   `;
 
   db.query(
@@ -98,8 +105,9 @@ exports.createEvent = (req, res) => {
       data,
       horario || "",
       local,
-      imagem || "",
-      capacidade || "",
+      imagemFinal,
+      imagemFinal,
+      capacidade,
       criador_id
     ],
     (err, result) => {
@@ -120,8 +128,10 @@ exports.createEvent = (req, res) => {
           data_evento: data,
           horario: horario || "",
           local,
-          imagem: imagem || "",
-          capacidade: capacidade || "",
+          imagem: imagemFinal,
+          imagem_url: imagemFinal,
+          capacidade,
+          confirmados: 0,
           criador_id,
           participantes: 0
         }
@@ -138,7 +148,7 @@ exports.confirmarPresenca = (req, res) => {
   const user_id = req.user.id;
 
   const verificarEvento = `
-    SELECT id
+    SELECT id, capacidade, confirmados
     FROM events
     WHERE id = ?
   `;
@@ -157,22 +167,66 @@ exports.confirmarPresenca = (req, res) => {
       });
     }
 
-    const sql = `
-      INSERT IGNORE INTO event_participants
-      (event_id, user_id)
-      VALUES (?, ?)
+    const evento = results[0];
+
+    if (evento.confirmados >= evento.capacidade) {
+      return res.status(400).json({
+        erro: "Evento lotado."
+      });
+    }
+
+    const verificarParticipante = `
+      SELECT id
+      FROM event_participants
+      WHERE event_id = ? AND user_id = ?
     `;
 
-    db.query(sql, [event_id, user_id], (err) => {
+    db.query(verificarParticipante, [event_id, user_id], (err, participantes) => {
       if (err) {
         return res.status(500).json({
-          erro: "Erro ao confirmar presença",
+          erro: "Erro ao verificar participante",
           detalhes: err.message
         });
       }
 
-      res.json({
-        mensagem: "Presença confirmada com sucesso!"
+      if (participantes.length > 0) {
+        return res.status(400).json({
+          erro: "Você já confirmou presença neste evento."
+        });
+      }
+
+      const inserirParticipante = `
+        INSERT INTO event_participants
+        (event_id, user_id)
+        VALUES (?, ?)
+      `;
+
+      db.query(inserirParticipante, [event_id, user_id], (err) => {
+        if (err) {
+          return res.status(500).json({
+            erro: "Erro ao confirmar presença",
+            detalhes: err.message
+          });
+        }
+
+        const atualizarEvento = `
+          UPDATE events
+          SET confirmados = confirmados + 1
+          WHERE id = ?
+        `;
+
+        db.query(atualizarEvento, [event_id], (err) => {
+          if (err) {
+            return res.status(500).json({
+              erro: "Erro ao atualizar contador",
+              detalhes: err.message
+            });
+          }
+
+          res.json({
+            mensagem: "Presença confirmada com sucesso!"
+          });
+        });
       });
     });
   });
@@ -185,21 +239,57 @@ exports.cancelarPresenca = (req, res) => {
   const event_id = req.params.id;
   const user_id = req.user.id;
 
-  const sql = `
-    DELETE FROM event_participants
+  const verificarParticipante = `
+    SELECT id
+    FROM event_participants
     WHERE event_id = ? AND user_id = ?
   `;
 
-  db.query(sql, [event_id, user_id], (err) => {
+  db.query(verificarParticipante, [event_id, user_id], (err, results) => {
     if (err) {
       return res.status(500).json({
-        erro: "Erro ao cancelar presença",
+        erro: "Erro ao verificar presença",
         detalhes: err.message
       });
     }
 
-    res.json({
-      mensagem: "Presença cancelada com sucesso!"
+    if (results.length === 0) {
+      return res.status(400).json({
+        erro: "Você não confirmou presença neste evento."
+      });
+    }
+
+    const removerParticipante = `
+      DELETE FROM event_participants
+      WHERE event_id = ? AND user_id = ?
+    `;
+
+    db.query(removerParticipante, [event_id, user_id], (err) => {
+      if (err) {
+        return res.status(500).json({
+          erro: "Erro ao cancelar presença",
+          detalhes: err.message
+        });
+      }
+
+      const atualizarEvento = `
+        UPDATE events
+        SET confirmados = GREATEST(confirmados - 1, 0)
+        WHERE id = ?
+      `;
+
+      db.query(atualizarEvento, [event_id], (err) => {
+        if (err) {
+          return res.status(500).json({
+            erro: "Erro ao atualizar contador",
+            detalhes: err.message
+          });
+        }
+
+        res.json({
+          mensagem: "Presença cancelada com sucesso!"
+        });
+      });
     });
   });
 };
@@ -222,6 +312,7 @@ exports.getMeusEventos = (req, res) => {
       e.imagem,
       e.imagem_url,
       e.capacidade,
+      e.confirmados,
       e.criador_id,
       e.data_criacao,
       p.data_confirmacao,
@@ -246,6 +337,83 @@ exports.getMeusEventos = (req, res) => {
 
     res.json(results);
   });
+};
+
+/* ================================
+   EDITAR EVENTO
+   APENAS ADMIN
+================================ */
+exports.updateEvent = (req, res) => {
+  const { id } = req.params;
+
+  const {
+    titulo,
+    descricao,
+    tipo,
+    data,
+    horario,
+    local,
+    imagem,
+    imagem_url,
+    capacidade
+  } = req.body;
+
+  const imagemFinal = imagem_url || imagem;
+
+  if (!titulo || !data || !local || !imagemFinal || !capacidade) {
+    return res.status(400).json({
+      erro: "Título, data, local, imagem e capacidade são obrigatórios."
+    });
+  }
+
+  const sql = `
+    UPDATE events
+    SET 
+      titulo = ?, 
+      descricao = ?, 
+      tipo = ?, 
+      data_evento = ?, 
+      horario = ?, 
+      local = ?, 
+      imagem = ?, 
+      imagem_url = ?,
+      capacidade = ?
+    WHERE id = ?
+  `;
+
+  db.query(
+    sql,
+    [
+      titulo,
+      descricao || "",
+      tipo || "Evento",
+      data,
+      horario || "",
+      local,
+      imagemFinal,
+      imagemFinal,
+      capacidade,
+      id
+    ],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({
+          erro: "Erro ao atualizar evento",
+          detalhes: err.message
+        });
+      }
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          erro: "Evento não encontrado"
+        });
+      }
+
+      res.json({
+        mensagem: "Evento atualizado com sucesso!"
+      });
+    }
+  );
 };
 
 /* ================================

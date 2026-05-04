@@ -38,8 +38,6 @@ CREATE TABLE users (
 
     nome VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
-
-    -- A senha deve ser salva criptografada pela API usando bcrypt.
     senha VARCHAR(255) NOT NULL,
 
     ra VARCHAR(50) DEFAULT NULL UNIQUE,
@@ -275,13 +273,16 @@ CREATE TABLE events (
     horario VARCHAR(100) DEFAULT NULL,
     hora VARCHAR(100) DEFAULT NULL,
 
-    local VARCHAR(255) DEFAULT NULL,
+    local VARCHAR(255) NOT NULL,
 
-    imagem VARCHAR(255) DEFAULT NULL,
-    imagem_url VARCHAR(255) DEFAULT NULL,
+    -- IMAGEM AGORA É OBRIGATÓRIA
+    imagem VARCHAR(255) NOT NULL,
+    imagem_url VARCHAR(255) NOT NULL,
 
+    -- CONTROLE DE VAGAS / CONFIRMADOS
     vagas INT DEFAULT NULL,
-    capacidade INT DEFAULT NULL,
+    capacidade INT NOT NULL DEFAULT 30,
+    confirmados INT NOT NULL DEFAULT 0,
 
     criador_id INT DEFAULT NULL,
     usuario_id INT DEFAULT NULL,
@@ -383,7 +384,6 @@ CREATE TABLE event_participants (
 
     event_id INT NOT NULL,
 
-    -- Mantive os dois nomes para funcionar com qualquer parte da API.
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
 

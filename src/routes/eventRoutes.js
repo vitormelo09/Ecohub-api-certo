@@ -53,6 +53,17 @@ router.post(
 );
 
 /* ================================
+   EDITAR EVENTO
+   Apenas admin
+================================ */
+router.put(
+  "/:id",
+  authMiddleware,
+  adminMiddleware,
+  eventController.updateEvent
+);
+
+/* ================================
    EXCLUIR EVENTO
    Apenas admin
 ================================ */
