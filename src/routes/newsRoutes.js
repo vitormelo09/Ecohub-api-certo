@@ -12,6 +12,26 @@ const adminMiddleware = require("../middlewares/adminMiddleware");
 router.get("/", newsController.getNews);
 
 /* ================================
+   CURTIR NOTÍCIA
+   Usuário logado
+================================ */
+router.post(
+  "/:id/like",
+  authMiddleware,
+  newsController.likeNews
+);
+
+/* ================================
+   REMOVER CURTIDA DA NOTÍCIA
+   Usuário logado
+================================ */
+router.delete(
+  "/:id/like",
+  authMiddleware,
+  newsController.unlikeNews
+);
+
+/* ================================
    CRIAR NOTÍCIA
    Apenas admin
 ================================ */
