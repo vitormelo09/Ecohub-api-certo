@@ -24,7 +24,7 @@ function montarUrlImagemPost(req, imagemUrl) {
     return `${req.protocol}://${req.get("host")}${imagemUrl}`;
   }
 
-  return `${req.protocol}://${req.get("host")}/uploads/${imagemUrl}`;
+  return `${req.protocol}://${req.get("host")}/uploads/posts/${imagemUrl}`;
 }
 
 /* ================================
@@ -51,18 +51,27 @@ exports.getPosts = (req, res) => {
       p.conteudo,
       p.imagem_url,
       p.data_publicacao,
+
       u.nome,
       u.email,
       u.foto_perfil,
+
       COUNT(DISTINCT l.id) AS likes,
+
       ${
         usuarioId
           ? `MAX(CASE WHEN l.usuario_id = ${Number(usuarioId)} THEN 1 ELSE 0 END)`
           : `0`
       } AS curtidoPorMim
+
     FROM posts p
-    JOIN users u ON p.usuario_id = u.id
-    LEFT JOIN likes l ON l.post_id = p.id
+
+    JOIN users u 
+      ON p.usuario_id = u.id
+
+    LEFT JOIN likes l 
+      ON l.post_id = p.id
+
     GROUP BY 
       p.id,
       p.usuario_id,
@@ -72,13 +81,15 @@ exports.getPosts = (req, res) => {
       u.nome,
       u.email,
       u.foto_perfil
+
     ORDER BY p.data_publicacao DESC
   `;
 
   db.query(sql, (err, results) => {
     if (err) {
       return res.status(500).json({
-        erro: err.message
+        erro: "Erro ao buscar posts",
+        detalhes: err.message
       });
     }
 
@@ -105,14 +116,23 @@ exports.getMyPosts = (req, res) => {
       p.conteudo,
       p.imagem_url,
       p.data_publicacao,
+
       u.nome,
       u.email,
       u.foto_perfil,
+
       COUNT(DISTINCT l.id) AS likes
+
     FROM posts p
-    JOIN users u ON p.usuario_id = u.id
-    LEFT JOIN likes l ON l.post_id = p.id
+
+    JOIN users u 
+      ON p.usuario_id = u.id
+
+    LEFT JOIN likes l 
+      ON l.post_id = p.id
+
     WHERE p.usuario_id = ?
+
     GROUP BY 
       p.id,
       p.usuario_id,
@@ -122,6 +142,7 @@ exports.getMyPosts = (req, res) => {
       u.nome,
       u.email,
       u.foto_perfil
+
     ORDER BY p.data_publicacao DESC
   `;
 
@@ -149,11 +170,13 @@ exports.getMyPosts = (req, res) => {
 exports.createPost = (req, res) => {
   const { conteudo } = req.body;
   const usuario_id = req.user.id;
-  const imagem_url = req.file ? req.file.filename : null;
 
-  if (!conteudo || !conteudo.trim()) {
+  const textoPost = conteudo ? conteudo.trim() : "";
+  const imagem_url = req.file ? `/uploads/posts/${req.file.filename}` : null;
+
+  if (!textoPost && !imagem_url) {
     return res.status(400).json({
-      erro: "O conteúdo do post é obrigatório."
+      erro: "Escreva algo ou selecione uma imagem para publicar."
     });
   }
 
@@ -163,16 +186,23 @@ exports.createPost = (req, res) => {
     VALUES (?, ?, ?)
   `;
 
-  db.query(sql, [usuario_id, conteudo.trim(), imagem_url], (err, result) => {
+  db.query(sql, [usuario_id, textoPost, imagem_url], (err, result) => {
     if (err) {
       return res.status(500).json({
-        erro: err.message
+        erro: "Erro ao criar post",
+        detalhes: err.message
       });
     }
 
     res.status(201).json({
       mensagem: "Post criado!",
-      id: result.insertId
+      id: result.insertId,
+      post: {
+        id: result.insertId,
+        usuario_id,
+        conteudo: textoPost,
+        imagem_url
+      }
     });
   });
 };
@@ -201,7 +231,8 @@ exports.updatePost = (req, res) => {
   db.query(verificarSql, [id, usuario_id], (err, results) => {
     if (err) {
       return res.status(500).json({
-        erro: err.message
+        erro: "Erro ao verificar post",
+        detalhes: err.message
       });
     }
 
@@ -221,7 +252,8 @@ exports.updatePost = (req, res) => {
     db.query(atualizarSql, [conteudo.trim(), id, usuario_id], (errUpdate) => {
       if (errUpdate) {
         return res.status(500).json({
-          erro: errUpdate.message
+          erro: "Erro ao editar post",
+          detalhes: errUpdate.message
         });
       }
 
@@ -247,7 +279,8 @@ exports.deletePost = (req, res) => {
   db.query("SELECT * FROM posts WHERE id = ?", [id], (err, results) => {
     if (err) {
       return res.status(500).json({
-        erro: err.message
+        erro: "Erro ao buscar post",
+        detalhes: err.message
       });
     }
 
@@ -266,7 +299,8 @@ exports.deletePost = (req, res) => {
     db.query("DELETE FROM posts WHERE id = ?", [id], (err2) => {
       if (err2) {
         return res.status(500).json({
-          erro: err2.message
+          erro: "Erro ao deletar post",
+          detalhes: err2.message
         });
       }
 

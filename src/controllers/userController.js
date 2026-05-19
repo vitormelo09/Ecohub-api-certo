@@ -4,9 +4,6 @@ const jwt = require("jsonwebtoken");
 
 const SECRET = process.env.JWT_SECRET || "segredo_super_secreto";
 
-/* ================================
-   E-MAILS QUE SEMPRE SERÃO ADMIN
-================================ */
 const emailsAdmins = [
   "238482024@eniac.edu.br"
 ];
@@ -27,32 +24,18 @@ function montarUrlFoto(req, fotoPerfil) {
 exports.getUsers = (req, res) => {
   const sql = `
     SELECT 
-      id,
-      nome,
-      email,
-      tipo,
-      bio,
-      curso,
-      semestre,
-      foto_perfil,
-      data_criacao
+      id, nome, email, tipo, bio, curso, semestre, foto_perfil, data_criacao
     FROM users
     ORDER BY nome ASC
   `;
 
   db.query(sql, (err, results) => {
-    if (err) {
-      return res.status(500).json({
-        erro: err.message
-      });
-    }
+    if (err) return res.status(500).json({ erro: err.message });
 
-    const usuarios = results.map((user) => ({
+    res.json(results.map(user => ({
       ...user,
       foto_perfil_url: montarUrlFoto(req, user.foto_perfil)
-    }));
-
-    res.json(usuarios);
+    })));
   });
 };
 
@@ -63,56 +46,66 @@ exports.searchUsers = (req, res) => {
   const usuarioLogadoId = req.user.id;
   const termo = (req.query.q || "").trim();
 
-  if (!termo) {
-    return res.json([]);
-  }
+  if (!termo) return res.json([]);
 
   const sql = `
     SELECT 
-      u.id,
-      u.nome,
-      u.email,
-      u.tipo,
-      u.bio,
-      u.curso,
-      u.semestre,
-      u.foto_perfil,
+      u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil,
       EXISTS (
-        SELECT 1
-        FROM seguidores s
-        WHERE s.seguidor_id = ?
-        AND s.seguindo_id = u.id
+        SELECT 1 FROM seguidores s
+        WHERE s.seguidor_id = ? AND s.seguindo_id = u.id
       ) AS seguindo
     FROM users u
     WHERE u.id <> ?
-    AND (
-      u.nome LIKE ?
-      OR u.email LIKE ?
-    )
+    AND (u.nome LIKE ? OR u.email LIKE ?)
     ORDER BY u.nome ASC
     LIMIT 20
   `;
 
   const busca = `%${termo}%`;
 
-  db.query(
-    sql,
-    [usuarioLogadoId, usuarioLogadoId, busca, busca],
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({
-          erro: err.message
-        });
-      }
+  db.query(sql, [usuarioLogadoId, usuarioLogadoId, busca, busca], (err, results) => {
+    if (err) return res.status(500).json({ erro: err.message });
 
-      const usuarios = results.map((user) => ({
-        ...user,
-        foto_perfil_url: montarUrlFoto(req, user.foto_perfil)
-      }));
+    res.json(results.map(user => ({
+      ...user,
+      foto_perfil_url: montarUrlFoto(req, user.foto_perfil)
+    })));
+  });
+};
 
-      res.json(usuarios);
+/* ================================
+   SUGESTÕES DE USUÁRIOS
+================================ */
+exports.getUserSuggestions = (req, res) => {
+  const usuarioLogadoId = req.user.id;
+
+  const sql = `
+    SELECT 
+      u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil,
+      EXISTS (
+        SELECT 1 FROM seguidores s
+        WHERE s.seguidor_id = ? AND s.seguindo_id = u.id
+      ) AS seguindo
+    FROM users u
+    WHERE u.id <> ?
+    ORDER BY RAND()
+    LIMIT 5
+  `;
+
+  db.query(sql, [usuarioLogadoId, usuarioLogadoId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar sugestões",
+        detalhes: err.message
+      });
     }
-  );
+
+    res.json(results.map(user => ({
+      ...user,
+      foto_perfil_url: montarUrlFoto(req, user.foto_perfil)
+    })));
+  });
 };
 
 /* ================================
@@ -123,57 +116,27 @@ exports.getMe = (req, res) => {
 
   const sql = `
     SELECT 
-      u.id,
-      u.nome,
-      u.email,
-      u.tipo,
-      u.bio,
-      u.curso,
-      u.semestre,
-      u.foto_perfil,
-      u.data_criacao,
+      u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil, u.data_criacao,
 
-      (
-        SELECT COUNT(*) 
-        FROM seguidores 
-        WHERE seguindo_id = u.id
-      ) AS seguidores,
-
-      (
-        SELECT COUNT(*) 
-        FROM seguidores 
-        WHERE seguidor_id = u.id
-      ) AS seguindo,
-
-      (
-        SELECT COUNT(*) 
-        FROM posts 
-        WHERE usuario_id = u.id
-      ) AS posts
+      (SELECT COUNT(*) FROM seguidores WHERE seguindo_id = u.id) AS seguidores,
+      (SELECT COUNT(*) FROM seguidores WHERE seguidor_id = u.id) AS seguindo,
+      (SELECT COUNT(*) FROM posts WHERE usuario_id = u.id) AS posts
 
     FROM users u
     WHERE u.id = ?
   `;
 
   db.query(sql, [usuarioId], (err, results) => {
-    if (err) {
-      return res.status(500).json({
-        erro: err.message
-      });
-    }
+    if (err) return res.status(500).json({ erro: err.message });
 
     if (results.length === 0) {
-      return res.status(404).json({
-        erro: "Usuário não encontrado"
-      });
+      return res.status(404).json({ erro: "Usuário não encontrado" });
     }
 
-    const usuario = {
+    res.json({
       ...results[0],
       foto_perfil_url: montarUrlFoto(req, results[0].foto_perfil)
-    };
-
-    res.json(usuario);
+    });
   });
 };
 
@@ -186,39 +149,15 @@ exports.getUserProfile = (req, res) => {
 
   const sql = `
     SELECT 
-      u.id,
-      u.nome,
-      u.email,
-      u.tipo,
-      u.bio,
-      u.curso,
-      u.semestre,
-      u.foto_perfil,
-      u.data_criacao,
+      u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil, u.data_criacao,
 
-      (
-        SELECT COUNT(*) 
-        FROM seguidores 
-        WHERE seguindo_id = u.id
-      ) AS seguidores,
-
-      (
-        SELECT COUNT(*) 
-        FROM seguidores 
-        WHERE seguidor_id = u.id
-      ) AS seguindo,
-
-      (
-        SELECT COUNT(*) 
-        FROM posts 
-        WHERE usuario_id = u.id
-      ) AS posts,
+      (SELECT COUNT(*) FROM seguidores WHERE seguindo_id = u.id) AS seguidores,
+      (SELECT COUNT(*) FROM seguidores WHERE seguidor_id = u.id) AS seguindo,
+      (SELECT COUNT(*) FROM posts WHERE usuario_id = u.id) AS posts,
 
       EXISTS (
-        SELECT 1
-        FROM seguidores s
-        WHERE s.seguidor_id = ?
-        AND s.seguindo_id = u.id
+        SELECT 1 FROM seguidores s
+        WHERE s.seguidor_id = ? AND s.seguindo_id = u.id
       ) AS euSigo
 
     FROM users u
@@ -226,24 +165,149 @@ exports.getUserProfile = (req, res) => {
   `;
 
   db.query(sql, [usuarioLogadoId, perfilId], (err, results) => {
-    if (err) {
-      return res.status(500).json({
-        erro: err.message
-      });
-    }
+    if (err) return res.status(500).json({ erro: err.message });
 
     if (results.length === 0) {
-      return res.status(404).json({
-        erro: "Usuário não encontrado"
+      return res.status(404).json({ erro: "Usuário não encontrado" });
+    }
+
+    res.json({
+      ...results[0],
+      foto_perfil_url: montarUrlFoto(req, results[0].foto_perfil)
+    });
+  });
+};
+
+/* ================================
+   POSTS DO USUÁRIO
+================================ */
+exports.getUserPosts = (req, res) => {
+  const usuarioId = Number(req.params.id);
+  const usuarioLogadoId = req.user.id;
+
+  const sql = `
+    SELECT 
+      p.id,
+      p.usuario_id,
+      p.conteudo,
+      p.imagem_url,
+      p.data_publicacao,
+
+      u.nome,
+      u.email,
+      u.foto_perfil,
+
+      COUNT(DISTINCT l.id) AS likes,
+      COUNT(DISTINCT c.id) AS totalComentarios,
+
+      EXISTS (
+        SELECT 1
+        FROM likes lk
+        WHERE lk.post_id = p.id
+        AND lk.usuario_id = ?
+      ) AS curtidoPorMim
+
+    FROM posts p
+    INNER JOIN users u ON u.id = p.usuario_id
+    LEFT JOIN likes l ON l.post_id = p.id
+    LEFT JOIN comments c ON c.post_id = p.id
+
+    WHERE p.usuario_id = ?
+
+    GROUP BY 
+      p.id,
+      p.usuario_id,
+      p.conteudo,
+      p.imagem_url,
+      p.data_publicacao,
+      u.nome,
+      u.email,
+      u.foto_perfil
+
+    ORDER BY p.data_publicacao DESC
+  `;
+
+  db.query(sql, [usuarioLogadoId, usuarioId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar posts do usuário",
+        detalhes: err.message
       });
     }
 
-    const perfil = {
-      ...results[0],
-      foto_perfil_url: montarUrlFoto(req, results[0].foto_perfil)
-    };
+    res.json(results.map(post => ({
+      ...post,
+      foto_perfil_url: montarUrlFoto(req, post.foto_perfil)
+    })));
+  });
+};
 
-    res.json(perfil);
+/* ================================
+   PROJETOS DO USUÁRIO
+   Se sua tabela for "projetos", troque projects por projetos.
+================================ */
+exports.getUserProjects = (req, res) => {
+  const usuarioId = Number(req.params.id);
+
+  const sql = `
+    SELECT *
+    FROM projects
+    WHERE usuario_id = ?
+    ORDER BY id DESC
+  `;
+
+  db.query(sql, [usuarioId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar projetos do usuário",
+        detalhes: err.message
+      });
+    }
+
+    res.json(results);
+  });
+};
+
+/* ================================
+   COMENTÁRIOS DO USUÁRIO
+================================ */
+exports.getUserComments = (req, res) => {
+  const usuarioId = Number(req.params.id);
+
+  const sql = `
+    SELECT 
+      c.id,
+      c.post_id,
+      c.usuario_id,
+      c.texto,
+      c.data_criacao,
+
+      p.conteudo AS post_conteudo,
+
+      u.nome,
+      u.foto_perfil
+
+    FROM comments c
+    INNER JOIN posts p ON p.id = c.post_id
+    INNER JOIN users u ON u.id = c.usuario_id
+
+    WHERE c.usuario_id = ?
+
+    ORDER BY c.data_criacao DESC
+  `;
+
+  db.query(sql, [usuarioId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar comentários do usuário",
+        detalhes: err.message
+      });
+    }
+
+    res.json(results.map(comentario => ({
+      ...comentario,
+      foto_perfil_url: montarUrlFoto(req, comentario.foto_perfil)
+    })));
   });
 };
 
@@ -255,59 +319,39 @@ exports.updateMyProfile = (req, res) => {
   const { nome, bio, curso, semestre } = req.body;
 
   if (!nome || !nome.trim()) {
-    return res.status(400).json({
-      erro: "O nome é obrigatório."
-    });
+    return res.status(400).json({ erro: "O nome é obrigatório." });
   }
 
-  let fotoPerfil = null;
+  const fotoPerfil = req.file ? `/uploads/perfis/${req.file.filename}` : null;
 
-  if (req.file) {
-    fotoPerfil = `/uploads/perfis/${req.file.filename}`;
-  }
-
-  let sql;
-  let params;
-
-  if (fotoPerfil) {
-    sql = `
+  const sql = fotoPerfil
+    ? `
       UPDATE users
-      SET 
-        nome = ?,
-        bio = ?,
-        curso = ?,
-        semestre = ?,
-        foto_perfil = ?
+      SET nome = ?, bio = ?, curso = ?, semestre = ?, foto_perfil = ?
+      WHERE id = ?
+    `
+    : `
+      UPDATE users
+      SET nome = ?, bio = ?, curso = ?, semestre = ?
       WHERE id = ?
     `;
 
-    params = [
-      nome.trim(),
-      bio ? bio.trim() : "",
-      curso ? curso.trim() : "",
-      semestre ? semestre.trim() : "",
-      fotoPerfil,
-      usuarioId
-    ];
-  } else {
-    sql = `
-      UPDATE users
-      SET 
-        nome = ?,
-        bio = ?,
-        curso = ?,
-        semestre = ?
-      WHERE id = ?
-    `;
-
-    params = [
-      nome.trim(),
-      bio ? bio.trim() : "",
-      curso ? curso.trim() : "",
-      semestre ? semestre.trim() : "",
-      usuarioId
-    ];
-  }
+  const params = fotoPerfil
+    ? [
+        nome.trim(),
+        bio ? bio.trim() : "",
+        curso ? curso.trim() : "",
+        semestre ? semestre.trim() : "",
+        fotoPerfil,
+        usuarioId
+      ]
+    : [
+        nome.trim(),
+        bio ? bio.trim() : "",
+        curso ? curso.trim() : "",
+        semestre ? semestre.trim() : "",
+        usuarioId
+      ];
 
   db.query(sql, params, (err) => {
     if (err) {
@@ -317,64 +361,8 @@ exports.updateMyProfile = (req, res) => {
       });
     }
 
-    const buscarSql = `
-      SELECT 
-        u.id,
-        u.nome,
-        u.email,
-        u.tipo,
-        u.bio,
-        u.curso,
-        u.semestre,
-        u.foto_perfil,
-        u.data_criacao,
-
-        (
-          SELECT COUNT(*) 
-          FROM seguidores 
-          WHERE seguindo_id = u.id
-        ) AS seguidores,
-
-        (
-          SELECT COUNT(*) 
-          FROM seguidores 
-          WHERE seguidor_id = u.id
-        ) AS seguindo,
-
-        (
-          SELECT COUNT(*) 
-          FROM posts 
-          WHERE usuario_id = u.id
-        ) AS posts
-
-      FROM users u
-      WHERE u.id = ?
-    `;
-
-    db.query(buscarSql, [usuarioId], (errBusca, results) => {
-      if (errBusca) {
-        return res.status(500).json({
-          erro: "Erro ao buscar perfil atualizado",
-          detalhes: errBusca.message
-        });
-      }
-
-      if (results.length === 0) {
-        return res.status(404).json({
-          erro: "Usuário não encontrado"
-        });
-      }
-
-      const usuario = {
-        ...results[0],
-        foto_perfil_url: montarUrlFoto(req, results[0].foto_perfil)
-      };
-
-      res.json({
-        mensagem: "Perfil atualizado com sucesso!",
-        usuario
-      });
-    });
+    req.user.id = usuarioId;
+    return exports.getMe(req, res);
   });
 };
 
@@ -392,17 +380,11 @@ exports.createUser = async (req, res) => {
     }
 
     const emailNormalizado = email.toLowerCase().trim().replace(/\s/g, "");
-
-    const tipo = emailsAdmins.includes(emailNormalizado)
-      ? "admin"
-      : "aluno";
-
+    const tipo = emailsAdmins.includes(emailNormalizado) ? "admin" : "aluno";
     const senhaHash = await bcrypt.hash(senha, 10);
 
     const sqlVerificar = `
-      SELECT id
-      FROM users
-      WHERE email = ?
+      SELECT id FROM users WHERE email = ?
     `;
 
     db.query(sqlVerificar, [emailNormalizado], (errVerificar, results) => {
@@ -463,9 +445,7 @@ exports.createUser = async (req, res) => {
       );
     });
   } catch (error) {
-    res.status(500).json({
-      erro: error.message
-    });
+    res.status(500).json({ erro: error.message });
   }
 };
 
@@ -474,7 +454,6 @@ exports.createUser = async (req, res) => {
 ================================ */
 exports.login = (req, res) => {
   const { email, senha } = req.body;
-
   const emailNormalizado = email.toLowerCase().trim().replace(/\s/g, "");
 
   const sql = `
@@ -484,26 +463,17 @@ exports.login = (req, res) => {
   `;
 
   db.query(sql, [emailNormalizado], async (err, results) => {
-    if (err) {
-      return res.status(500).json({
-        erro: err.message
-      });
-    }
+    if (err) return res.status(500).json({ erro: err.message });
 
     if (results.length === 0) {
-      return res.status(401).json({
-        erro: "Usuário não encontrado"
-      });
+      return res.status(401).json({ erro: "Usuário não encontrado" });
     }
 
     const user = results[0];
-
     const senhaValida = await bcrypt.compare(senha, user.senha);
 
     if (!senhaValida) {
-      return res.status(401).json({
-        erro: "Senha incorreta"
-      });
+      return res.status(401).json({ erro: "Senha incorreta" });
     }
 
     const token = jwt.sign(
@@ -520,44 +490,18 @@ exports.login = (req, res) => {
 
     const buscarSql = `
       SELECT 
-        u.id,
-        u.nome,
-        u.email,
-        u.tipo,
-        u.bio,
-        u.curso,
-        u.semestre,
-        u.foto_perfil,
-        u.data_criacao,
+        u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil, u.data_criacao,
 
-        (
-          SELECT COUNT(*) 
-          FROM seguidores 
-          WHERE seguindo_id = u.id
-        ) AS seguidores,
-
-        (
-          SELECT COUNT(*) 
-          FROM seguidores 
-          WHERE seguidor_id = u.id
-        ) AS seguindo,
-
-        (
-          SELECT COUNT(*) 
-          FROM posts 
-          WHERE usuario_id = u.id
-        ) AS posts
+        (SELECT COUNT(*) FROM seguidores WHERE seguindo_id = u.id) AS seguidores,
+        (SELECT COUNT(*) FROM seguidores WHERE seguidor_id = u.id) AS seguindo,
+        (SELECT COUNT(*) FROM posts WHERE usuario_id = u.id) AS posts
 
       FROM users u
       WHERE u.id = ?
     `;
 
     db.query(buscarSql, [user.id], (errBusca, resultsBusca) => {
-      if (errBusca) {
-        return res.status(500).json({
-          erro: errBusca.message
-        });
-      }
+      if (errBusca) return res.status(500).json({ erro: errBusca.message });
 
       const usuario = {
         ...resultsBusca[0],
@@ -581,34 +525,22 @@ exports.followUser = (req, res) => {
   const seguindoId = Number(req.params.id);
 
   if (!seguindoId) {
-    return res.status(400).json({
-      erro: "ID do usuário é obrigatório."
-    });
+    return res.status(400).json({ erro: "ID do usuário é obrigatório." });
   }
 
   if (Number(seguidorId) === Number(seguindoId)) {
-    return res.status(400).json({
-      erro: "Você não pode seguir a si mesmo."
-    });
+    return res.status(400).json({ erro: "Você não pode seguir a si mesmo." });
   }
 
   const verificarUsuarioSql = `
-    SELECT id 
-    FROM users 
-    WHERE id = ?
+    SELECT id FROM users WHERE id = ?
   `;
 
   db.query(verificarUsuarioSql, [seguindoId], (err, users) => {
-    if (err) {
-      return res.status(500).json({
-        erro: err.message
-      });
-    }
+    if (err) return res.status(500).json({ erro: err.message });
 
     if (users.length === 0) {
-      return res.status(404).json({
-        erro: "Usuário não encontrado."
-      });
+      return res.status(404).json({ erro: "Usuário não encontrado." });
     }
 
     const sql = `
@@ -618,11 +550,7 @@ exports.followUser = (req, res) => {
     `;
 
     db.query(sql, [seguidorId, seguindoId], (err2) => {
-      if (err2) {
-        return res.status(500).json({
-          erro: err2.message
-        });
-      }
+      if (err2) return res.status(500).json({ erro: err2.message });
 
       res.status(201).json({
         mensagem: "Usuário seguido com sucesso.",
@@ -640,9 +568,7 @@ exports.unfollowUser = (req, res) => {
   const seguindoId = Number(req.params.id);
 
   if (!seguindoId) {
-    return res.status(400).json({
-      erro: "ID do usuário é obrigatório."
-    });
+    return res.status(400).json({ erro: "ID do usuário é obrigatório." });
   }
 
   const sql = `
@@ -652,11 +578,7 @@ exports.unfollowUser = (req, res) => {
   `;
 
   db.query(sql, [seguidorId, seguindoId], (err) => {
-    if (err) {
-      return res.status(500).json({
-        erro: err.message
-      });
-    }
+    if (err) return res.status(500).json({ erro: err.message });
 
     res.json({
       mensagem: "Usuário deixado de seguir com sucesso.",

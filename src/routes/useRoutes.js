@@ -27,7 +27,9 @@ const storage = multer.diskStorage({
 
   filename: (req, file, cb) => {
     const extensao = path.extname(file.originalname).toLowerCase();
-    const nomeArquivo = `perfil-${Date.now()}-${Math.round(Math.random() * 1e9)}${extensao}`;
+    const nomeArquivo = `perfil-${Date.now()}-${Math.round(
+      Math.random() * 1e9
+    )}${extensao}`;
 
     cb(null, nomeArquivo);
   }
@@ -66,6 +68,9 @@ router.get("/", userController.getUsers);
 // Buscar usuários no feed
 router.get("/search", authMiddleware, userController.searchUsers);
 
+// Sugestões de pessoas para seguir no feed
+router.get("/suggestions", authMiddleware, userController.getUserSuggestions);
+
 // Meu perfil
 router.get("/me", authMiddleware, userController.getMe);
 
@@ -88,14 +93,31 @@ router.put(
   userController.updateMyProfile
 );
 
-// Perfil público de um usuário
-router.get("/:id/profile", authMiddleware, userController.getUserProfile);
-
 // Cadastro
 router.post("/register", userController.createUser);
 
 // Login
 router.post("/login", userController.login);
+
+/* ================================
+   PERFIL PÚBLICO
+================================ */
+
+// Perfil público de um usuário
+router.get("/:id/profile", authMiddleware, userController.getUserProfile);
+
+// Posts publicados por esse usuário
+router.get("/:id/posts", authMiddleware, userController.getUserPosts);
+
+// Projetos publicados por esse usuário
+router.get("/:id/projects", authMiddleware, userController.getUserProjects);
+
+// Comentários feitos por esse usuário
+router.get("/:id/comments", authMiddleware, userController.getUserComments);
+
+/* ================================
+   SEGUIR / DEIXAR DE SEGUIR
+================================ */
 
 // Seguir usuário
 router.post("/:id/follow", authMiddleware, userController.followUser);

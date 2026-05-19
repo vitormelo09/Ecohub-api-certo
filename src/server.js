@@ -11,16 +11,39 @@ const app = express();
 
 const PORT = 3000;
 
-// --- MIDDLEWARES ---
+/* ================================
+   MIDDLEWARES
+================================ */
+
 app.use(cors());
+
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Liberar acesso às imagens salvas na pasta uploads
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use(
+  express.urlencoded({
+    extended: true
+  })
+);
 
-// --- IMPORTAÇÃO DE ROTAS ---
+/* ================================
+   LIBERAR UPLOADS
+================================ */
+
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../uploads"))
+);
+
+/* ================================
+   IMPORTAÇÃO DAS ROTAS
+================================ */
+
+// IMPORTANTE:
+// Seu arquivo chama useRoutes.js
+// então precisa importar assim:
+
 const userRoutes = require("./routes/useRoutes");
+
 const projectRoutes = require("./routes/projectRoutes");
 const postRoutes = require("./routes/postRoutes");
 const eventRoutes = require("./routes/eventRoutes");
@@ -31,27 +54,52 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const homeRoutes = require("./routes/homeRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
-// --- SWAGGER ---
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+/* ================================
+   SWAGGER
+================================ */
 
-// --- ROTAS DA API ---
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerDocs)
+);
+
+/* ================================
+   ROTA PRINCIPAL
+================================ */
+
 app.get("/", (req, res) => {
   res.send("API EcoHub funcionando");
 });
 
-// Registro das rotas no Express
+/* ================================
+   ROTAS DA API
+================================ */
+
 app.use("/api/users", userRoutes);
+
 app.use("/api/projects", projectRoutes);
+
 app.use("/api/posts", postRoutes);
+
 app.use("/api/events", eventRoutes);
+
 app.use("/api/news", newsRoutes);
+
 app.use("/api/comments", commentRoutes);
+
 app.use("/api/likes", likeRoutes);
+
 app.use("/api/notifications", notificationRoutes);
+
 app.use("/api/home", homeRoutes);
+
 app.use("/api/admin", adminRoutes);
 
-// --- TESTE DE CONEXÃO COM O BANCO ---
+/* ================================
+   TESTE DE BANCO
+================================ */
+
 app.get("/teste-banco", (req, res) => {
   db.query("SELECT 1", (err) => {
     if (err) {
@@ -61,12 +109,20 @@ app.get("/teste-banco", (req, res) => {
       });
     }
 
-    res.json({ status: "Banco conectado com sucesso" });
+    res.json({
+      status: "Banco conectado com sucesso"
+    });
   });
 });
 
-// --- INICIALIZAÇÃO DO SERVIDOR ---
+/* ================================
+   INICIAR SERVIDOR
+================================ */
+
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
-  console.log(`Documentação Swagger: http://localhost:${PORT}/api-docs`);
+
+  console.log(
+    `Swagger disponível em http://localhost:${PORT}/api-docs`
+  );
 });

@@ -1,53 +1,21 @@
 const express = require("express");
 const router = express.Router();
+
 const postController = require("../controllers/postController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     Post:
- *       type: object
- *       properties:
- *         id:
- *           type: integer
- *         conteudo:
- *           type: string
- *         imagem:
- *           type: string
- *         user_id:
- *           type: integer
- *       example:
- *         conteudo: Meu primeiro post
- */
+/* ================================
+   ROTAS DE POSTS
+================================ */
 
-/**
- * @swagger
- * /api/posts:
- *   get:
- *     summary: Lista todos os posts
- *     tags: [Posts]
- */
+// Listar todos os posts
 router.get("/", postController.getPosts);
 
-/**
- * @swagger
- * /api/posts/meus:
- *   get:
- *     summary: Lista os posts do usuário logado
- *     tags: [Posts]
- */
+// Listar posts do usuário logado
 router.get("/meus", authMiddleware, postController.getMyPosts);
 
-/**
- * @swagger
- * /api/posts:
- *   post:
- *     summary: Criar um novo post
- *     tags: [Posts]
- */
+// Criar novo post com texto e/ou imagem
 router.post(
   "/",
   authMiddleware,
@@ -55,22 +23,10 @@ router.post(
   postController.createPost
 );
 
-/**
- * @swagger
- * /api/posts/{id}:
- *   put:
- *     summary: Editar post
- *     tags: [Posts]
- */
+// Editar post
 router.put("/:id", authMiddleware, postController.updatePost);
 
-/**
- * @swagger
- * /api/posts/{id}:
- *   delete:
- *     summary: Deletar post
- *     tags: [Posts]
- */
+// Deletar post
 router.delete("/:id", authMiddleware, postController.deletePost);
 
 module.exports = router;
