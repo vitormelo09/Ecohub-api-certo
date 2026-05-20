@@ -68,25 +68,40 @@ exports.createNews = (req, res) => {
     titulo,
     resumo,
     conteudo,
-    imagem,
-    imagem_url,
+    conteudo_completo,
     link,
     categoria,
     data_publicacao
   } = req.body;
 
   const criador_id = req.user.id;
-  const imagemFinal = imagem_url || imagem;
 
-  if (!titulo || !resumo || !conteudo || !imagemFinal) {
+  const conteudoFinal = conteudo || conteudo_completo;
+
+  const imagemFinal = req.file
+    ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
+    : "";
+
+  if (!titulo || !resumo || !conteudoFinal || !imagemFinal) {
     return res.status(400).json({
       erro: "Título, resumo, conteúdo e imagem são obrigatórios."
     });
   }
 
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const dataFinal = data_publicacao || new Date().toISOString().split("T")[0];
+  const dataSelecionada = new Date(dataFinal + "T00:00:00");
+
+  if (dataSelecionada < hoje) {
+    return res.status(400).json({
+      erro: "Não é permitido publicar notícia com data anterior à data atual."
+    });
+  }
+
   const sql = `
-    INSERT INTO news
-    (
+    INSERT INTO news (
       titulo,
       resumo,
       conteudo_completo,
@@ -105,12 +120,12 @@ exports.createNews = (req, res) => {
     [
       titulo,
       resumo,
-      conteudo,
+      conteudoFinal,
       imagemFinal,
       imagemFinal,
       link || "#",
       categoria || "Geral",
-      data_publicacao || new Date().toISOString().split("T")[0],
+      dataFinal,
       criador_id
     ],
     (err, result) => {
@@ -127,12 +142,12 @@ exports.createNews = (req, res) => {
           id: result.insertId,
           titulo,
           resumo,
-          conteudo,
+          conteudo: conteudoFinal,
           imagem: imagemFinal,
           imagem_url: imagemFinal,
           link: link || "#",
           categoria: categoria || "Geral",
-          data_publicacao: data_publicacao || new Date().toISOString().split("T")[0],
+          data_publicacao: dataFinal,
           criador_id,
           curtidas: 0
         }
@@ -150,9 +165,7 @@ exports.likeNews = (req, res) => {
   const user_id = req.user.id;
 
   const verificarNoticia = `
-    SELECT id
-    FROM news
-    WHERE id = ?
+    SELECT id FROM news WHERE id = ?
   `;
 
   db.query(verificarNoticia, [news_id], (err, results) => {
@@ -170,8 +183,7 @@ exports.likeNews = (req, res) => {
     }
 
     const sql = `
-      INSERT IGNORE INTO news_likes
-      (news_id, user_id)
+      INSERT IGNORE INTO news_likes (news_id, user_id)
       VALUES (?, ?)
     `;
 

@@ -1,7 +1,13 @@
 -- ==========================================
 -- BANCO DE DADOS ECOHUB
 -- Script completo atualizado para Vue + API MySQL
--- Compatível com upload de imagem do PC nos eventos
+-- Compatível com:
+-- ✔ Upload de imagem
+-- ✔ Curtidas
+-- ✔ Comentários
+-- ✔ Eventos
+-- ✔ Notícias
+-- ✔ Curtidas em notícias
 -- ==========================================
 
 CREATE DATABASE IF NOT EXISTS ecohub
@@ -12,7 +18,6 @@ USE ecohub;
 
 -- ==========================================
 -- APAGAR TABELAS ANTIGAS
--- ATENÇÃO: isso apaga os dados antigos
 -- ==========================================
 
 DROP TABLE IF EXISTS notifications;
@@ -21,6 +26,7 @@ DROP TABLE IF EXISTS project_comments;
 DROP TABLE IF EXISTS event_participants;
 DROP TABLE IF EXISTS event_likes;
 DROP TABLE IF EXISTS project_likes;
+DROP TABLE IF EXISTS news_likes;
 DROP TABLE IF EXISTS seguidores;
 DROP TABLE IF EXISTS likes;
 DROP TABLE IF EXISTS comments;
@@ -44,22 +50,32 @@ CREATE TABLE users (
     bio TEXT DEFAULT NULL,
     curso VARCHAR(150) DEFAULT NULL,
     semestre VARCHAR(50) DEFAULT NULL,
-    tipo ENUM('aluno', 'professor', 'admin') DEFAULT 'aluno',
+
+    tipo ENUM(
+        'aluno',
+        'professor',
+        'admin'
+    ) DEFAULT 'aluno',
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ==========================================
--- 2. TABELA DE POSTS DO FEED
+-- 2. TABELA DE POSTS
 -- ==========================================
 
 CREATE TABLE posts (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     usuario_id INT NOT NULL,
     user_id INT DEFAULT NULL,
+
     conteudo TEXT NOT NULL,
+
     imagem VARCHAR(500) DEFAULT NULL,
     imagem_url VARCHAR(500) DEFAULT NULL,
+
     data_publicacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -81,11 +97,15 @@ CREATE TABLE posts (
 
 CREATE TABLE comments (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     post_id INT NOT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     texto TEXT DEFAULT NULL,
     conteudo TEXT DEFAULT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -111,9 +131,12 @@ CREATE TABLE comments (
 
 CREATE TABLE likes (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     post_id INT NOT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -142,15 +165,21 @@ CREATE TABLE likes (
 
 CREATE TABLE projects (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     titulo VARCHAR(255) NOT NULL,
     descricao TEXT NOT NULL,
+
     link_github VARCHAR(500) DEFAULT NULL,
+
     tecnologias_usadas VARCHAR(500) DEFAULT NULL,
     tecnologias VARCHAR(500) DEFAULT NULL,
+
     imagem VARCHAR(500) DEFAULT NULL,
     imagem_url VARCHAR(500) DEFAULT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -166,14 +195,17 @@ CREATE TABLE projects (
 );
 
 -- ==========================================
--- 6. TABELA DE CURTIDAS DOS PROJETOS
+-- 6. CURTIDAS DOS PROJETOS
 -- ==========================================
 
 CREATE TABLE project_likes (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     project_id INT NOT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -197,16 +229,20 @@ CREATE TABLE project_likes (
 );
 
 -- ==========================================
--- 7. TABELA DE COMENTÁRIOS DOS PROJETOS
+-- 7. COMENTÁRIOS DOS PROJETOS
 -- ==========================================
 
 CREATE TABLE project_comments (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     project_id INT NOT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     texto TEXT DEFAULT NULL,
     conteudo TEXT DEFAULT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -232,21 +268,24 @@ CREATE TABLE project_comments (
 
 CREATE TABLE events (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     titulo VARCHAR(255) NOT NULL,
     descricao TEXT NOT NULL,
+
     tipo VARCHAR(100) DEFAULT 'Evento',
     categoria VARCHAR(100) DEFAULT NULL,
+
     data_evento DATETIME NOT NULL,
     data DATE DEFAULT NULL,
+
     horario VARCHAR(100) DEFAULT NULL,
     hora VARCHAR(100) DEFAULT NULL,
+
     local VARCHAR(255) NOT NULL,
 
-    -- IMAGEM OBRIGATÓRIA PARA EVENTOS
     imagem VARCHAR(500) NOT NULL,
     imagem_url VARCHAR(500) NOT NULL,
 
-    -- CONTROLE DE VAGAS
     vagas INT DEFAULT NULL,
     capacidade INT NOT NULL DEFAULT 30,
     confirmados INT NOT NULL DEFAULT 0,
@@ -275,16 +314,22 @@ CREATE TABLE events (
 );
 
 -- ==========================================
--- 9. TABELA DE PARTICIPANTES DOS EVENTOS
--- IMPORTANTE: user_id é obrigatório porque o eventController usa req.user.id
+-- 9. PARTICIPANTES DOS EVENTOS
 -- ==========================================
 
 CREATE TABLE event_participants (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     event_id INT NOT NULL,
+
     user_id INT NOT NULL,
     usuario_id INT DEFAULT NULL,
-    status ENUM('confirmado', 'cancelado') DEFAULT 'confirmado',
+
+    status ENUM(
+        'confirmado',
+        'cancelado'
+    ) DEFAULT 'confirmado',
+
     data_confirmacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -308,14 +353,17 @@ CREATE TABLE event_participants (
 );
 
 -- ==========================================
--- 10. TABELA DE CURTIDAS DOS EVENTOS
+-- 10. CURTIDAS DOS EVENTOS
 -- ==========================================
 
 CREATE TABLE event_likes (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     event_id INT NOT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -339,16 +387,20 @@ CREATE TABLE event_likes (
 );
 
 -- ==========================================
--- 11. TABELA DE COMENTÁRIOS DOS EVENTOS
+-- 11. COMENTÁRIOS DOS EVENTOS
 -- ==========================================
 
 CREATE TABLE event_comments (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     event_id INT NOT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     texto TEXT DEFAULT NULL,
     conteudo TEXT DEFAULT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -374,23 +426,32 @@ CREATE TABLE event_comments (
 
 CREATE TABLE news (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     titulo VARCHAR(255) NOT NULL,
+
     resumo VARCHAR(255) DEFAULT NULL,
+
     categoria VARCHAR(100) DEFAULT NULL,
+
     conteudo TEXT DEFAULT NULL,
     conteudo_completo TEXT DEFAULT NULL,
+
     data_noticia DATE DEFAULT NULL,
     data DATE DEFAULT NULL,
+
     imagem VARCHAR(500) DEFAULT NULL,
     imagem_url VARCHAR(500) DEFAULT NULL,
+
     link VARCHAR(500) DEFAULT NULL,
     fonte VARCHAR(255) DEFAULT NULL,
     link_fonte VARCHAR(500) DEFAULT NULL,
     fonte_url VARCHAR(500) DEFAULT NULL,
+
     criador_id INT DEFAULT NULL,
     autor_id INT DEFAULT NULL,
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
+
     data_publicacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -417,13 +478,42 @@ CREATE TABLE news (
 );
 
 -- ==========================================
--- 13. TABELA DE SEGUIDORES
+-- 13. CURTIDAS DAS NOTÍCIAS
+-- ==========================================
+
+CREATE TABLE news_likes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    news_id INT NOT NULL,
+    user_id INT NOT NULL,
+
+    data_curtida TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY unique_news_user (news_id, user_id),
+
+    CONSTRAINT fk_news_likes_news
+        FOREIGN KEY (news_id)
+        REFERENCES news(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_news_likes_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+
+-- ==========================================
+-- 14. TABELA DE SEGUIDORES
 -- ==========================================
 
 CREATE TABLE seguidores (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     seguidor_id INT NOT NULL,
     seguindo_id INT NOT NULL,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -441,11 +531,12 @@ CREATE TABLE seguidores (
 );
 
 -- ==========================================
--- 14. TABELA DE NOTIFICAÇÕES
+-- 15. NOTIFICAÇÕES
 -- ==========================================
 
 CREATE TABLE notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
     remetente_id INT DEFAULT NULL,
@@ -466,8 +557,11 @@ CREATE TABLE notifications (
     post_id INT DEFAULT NULL,
     project_id INT DEFAULT NULL,
     event_id INT DEFAULT NULL,
+
     mensagem VARCHAR(255) DEFAULT NULL,
+
     lida BOOLEAN DEFAULT FALSE,
+
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

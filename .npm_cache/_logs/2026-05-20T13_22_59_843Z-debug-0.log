@@ -1,0 +1,26 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Users\usrlabecon\AppData\Roaming\npm\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.6.0
+2 info using node@v22.13.0
+3 silly config load:file:C:\Users\usrlabecon\AppData\Roaming\npm\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\usrlabecon\Ecohub-api-certo\.npmrc
+5 silly config load:file:C:\Users\usrlabecon\.npmrc
+6 silly config load:file:C:\Users\usrlabecon\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm install multer
+8 verbose argv "install" "multer"
+9 verbose logfile logs-max:10 dir:C:\Users\usrlabecon\Ecohub-api-certo\.npm_cache\_logs\2026-05-20T13_22_59_843Z-
+10 verbose logfile C:\Users\usrlabecon\Ecohub-api-certo\.npm_cache\_logs\2026-05-20T13_22_59_843Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+13 silly idealTree buildDeps
+14 silly fetch manifest multer@^2.1.1
+15 silly packumentCache full:https://registry.npmjs.org/multer cache-miss
+16 http fetch GET 200 https://registry.npmjs.org/multer 173ms (cache miss)
+17 silly packumentCache full:https://registry.npmjs.org/multer set size:undefined disposed:false
+18 silly placeDep ROOT multer@2.1.1 REPLACE for: api@1.0.0 want: ^2.1.1
+19 silly reify moves {}
+20 verbose cwd C:\Users\usrlabecon\Ecohub-api-certo
+21 verbose os Windows_NT 10.0.19045
+22 verbose node v22.13.0
+23 verbose npm  v11.6.0
+24 verbose exit 0
+25 info ok
