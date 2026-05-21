@@ -6,7 +6,9 @@ const router = express.Router();
 
 const eventController = require("../controllers/eventController");
 const authMiddleware = require("../middlewares/authMiddleware");
-const adminMiddleware = require("../middlewares/adminMiddleware");
+const adminPageMiddleware = require("../middlewares/adminPageMiddleware");
+
+const adminEventos = adminPageMiddleware("admin_eventos");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -72,9 +74,9 @@ router.post(
     console.log("USER APOS AUTH:", req.user);
     next();
   },
-  adminMiddleware,
+  adminEventos,
   (req, res, next) => {
-    console.log("PASSOU NO ADMIN");
+    console.log("PASSOU NO ADMIN DE EVENTOS");
     next();
   },
   upload.single("imagem"),
@@ -91,7 +93,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
-  adminMiddleware,
+  adminEventos,
   upload.single("imagem"),
   eventController.updateEvent
 );
@@ -100,7 +102,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  adminMiddleware,
+  adminEventos,
   eventController.deleteEvent
 );
 

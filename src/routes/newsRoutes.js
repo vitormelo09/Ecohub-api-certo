@@ -6,7 +6,9 @@ const path = require("path");
 
 const newsController = require("../controllers/newsController");
 const authMiddleware = require("../middlewares/authMiddleware");
-const adminMiddleware = require("../middlewares/adminMiddleware");
+const adminPageMiddleware = require("../middlewares/adminPageMiddleware");
+
+const adminNoticias = adminPageMiddleware("admin_noticias");
 
 /* ================================
    CONFIGURAÇÃO DO UPLOAD
@@ -54,24 +56,24 @@ router.delete(
 
 /* ================================
    CRIAR NOTÍCIA
-   Apenas admin
+   Apenas admin de notícias
 ================================ */
 router.post(
   "/",
   authMiddleware,
-  adminMiddleware,
+  adminNoticias,
   upload.single("imagem"),
   newsController.createNews
 );
 
 /* ================================
    EXCLUIR NOTÍCIA
-   Apenas admin
+   Apenas admin de notícias
 ================================ */
 router.delete(
   "/:id",
   authMiddleware,
-  adminMiddleware,
+  adminNoticias,
   newsController.deleteNews
 );
 

@@ -7,6 +7,7 @@ const router = express.Router();
 
 const userController = require("../controllers/userController");
 const authMiddleware = require("../middlewares/authMiddleware");
+const adminMiddleware = require("../middlewares/adminMiddleware");
 
 /* ================================
    UPLOAD FOTO PERFIL
@@ -98,6 +99,18 @@ router.post("/register", userController.createUser);
 
 // Login
 router.post("/login", userController.login);
+
+/* ================================
+   ADMIN PRINCIPAL
+   Alterar tipo/permissão de usuário
+================================ */
+
+router.put(
+  "/:id/tipo",
+  authMiddleware,
+  adminMiddleware,
+  userController.updateUserTipo
+);
 
 /* ================================
    PERFIL PÚBLICO

@@ -1,9 +1,51 @@
 const db = require("../config/db");
 
 /* ================================
+   MONTAR URL DA IMAGEM
+================================ */
+function montarUrlImagem(req, imagem) {
+  if (!imagem) return null;
+
+  if (imagem.startsWith("http")) {
+    return imagem;
+  }
+
+  return `${req.protocol}://${req.get("host")}${imagem}`;
+}
+
+/* ================================
    LISTAR TODOS OS PROJETOS
+   filtros:
+   ?ordem=recentes
+   ?ordem=antigos
+   ?ordem=curtidos
 ================================ */
 exports.getProjects = (req, res) => {
+  const ordem = req.query.ordem || "recentes";
+
+  let orderBy = `
+    ORDER BY 
+      p.destaque DESC,
+      p.data_criacao DESC
+  `;
+
+  if (ordem === "antigos") {
+    orderBy = `
+      ORDER BY 
+        p.destaque DESC,
+        p.data_criacao ASC
+    `;
+  }
+
+  if (ordem === "curtidos") {
+    orderBy = `
+      ORDER BY 
+        p.destaque DESC,
+        curtidas DESC,
+        p.data_criacao DESC
+    `;
+  }
+
   const sql = `
     SELECT 
       p.*,
@@ -18,17 +60,21 @@ exports.getProjects = (req, res) => {
       FROM project_likes
       GROUP BY project_id
     ) l ON l.project_id = p.id
-    ORDER BY curtidas DESC, p.data_criacao DESC
+    ${orderBy}
   `;
 
   db.query(sql, (err, results) => {
     if (err) {
       return res.status(500).json({
-        erro: err.message
+        erro: "Erro ao buscar projetos",
+        detalhes: err.message
       });
     }
 
-    res.json(results);
+    res.json(results.map(project => ({
+      ...project,
+      imagem_url: montarUrlImagem(req, project.imagem_url || project.imagem)
+    })));
   });
 };
 
@@ -37,6 +83,30 @@ exports.getProjects = (req, res) => {
 ================================ */
 exports.getMyProjects = (req, res) => {
   const usuario_id = req.user.id;
+  const ordem = req.query.ordem || "recentes";
+
+  let orderBy = `
+    ORDER BY 
+      p.destaque DESC,
+      p.data_criacao DESC
+  `;
+
+  if (ordem === "antigos") {
+    orderBy = `
+      ORDER BY 
+        p.destaque DESC,
+        p.data_criacao ASC
+    `;
+  }
+
+  if (ordem === "curtidos") {
+    orderBy = `
+      ORDER BY 
+        p.destaque DESC,
+        curtidas DESC,
+        p.data_criacao DESC
+    `;
+  }
 
   const sql = `
     SELECT 
@@ -53,7 +123,7 @@ exports.getMyProjects = (req, res) => {
       GROUP BY project_id
     ) l ON l.project_id = p.id
     WHERE p.usuario_id = ?
-    ORDER BY p.data_criacao DESC
+    ${orderBy}
   `;
 
   db.query(sql, [usuario_id], (err, results) => {
@@ -64,15 +134,26 @@ exports.getMyProjects = (req, res) => {
       });
     }
 
-    res.json(results);
+    res.json(results.map(project => ({
+      ...project,
+      imagem_url: montarUrlImagem(req, project.imagem_url || project.imagem)
+    })));
   });
 };
 
 /* ================================
    CRIAR PROJETO
+   imagem obrigatória
 ================================ */
 exports.createProject = (req, res) => {
-  const { titulo, descricao, link_github, tecnologias_usadas } = req.body;
+  const {
+    titulo,
+    descricao,
+    link_github,
+    tecnologias_usadas,
+    tecnologias
+  } = req.body;
+
   const usuario_id = req.user.id;
 
   if (!titulo || !descricao) {
@@ -81,16 +162,35 @@ exports.createProject = (req, res) => {
     });
   }
 
-  let imagem = null;
-
-  if (req.file) {
-    imagem = `/uploads/${req.file.filename}`;
+  if (!req.file) {
+    return res.status(400).json({
+      erro: "A imagem do projeto é obrigatória."
+    });
   }
+
+  const caminhoArquivo = req.file.path.replace(/\\/g, "/");
+
+  const indexUploads = caminhoArquivo.indexOf("uploads/");
+
+  const caminhoPublico = "/" + caminhoArquivo.substring(indexUploads);
+
+  const imagem = caminhoPublico;
+  const imagem_url = caminhoPublico;
 
   const sql = `
     INSERT INTO projects 
-    (titulo, descricao, link_github, tecnologias_usadas, usuario_id, imagem)
-    VALUES (?, ?, ?, ?, ?, ?)
+    (
+      titulo, 
+      descricao, 
+      link_github, 
+      tecnologias_usadas,
+      tecnologias,
+      usuario_id, 
+      imagem,
+      imagem_url,
+      destaque
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
   `;
 
   db.query(
@@ -99,21 +199,35 @@ exports.createProject = (req, res) => {
       titulo,
       descricao,
       link_github || "",
-      tecnologias_usadas || "",
+      tecnologias_usadas || tecnologias || "",
+      tecnologias || tecnologias_usadas || "",
       usuario_id,
-      imagem
+      imagem,
+      imagem_url
     ],
     (err, result) => {
       if (err) {
         return res.status(500).json({
-          erro: err.message
+          erro: "Erro ao criar projeto",
+          detalhes: err.message
         });
       }
 
       res.status(201).json({
         mensagem: "Projeto criado!",
-        id: result.insertId,
-        imagem
+        projeto: {
+          id: result.insertId,
+          titulo,
+          descricao,
+          link_github: link_github || "",
+          tecnologias_usadas: tecnologias_usadas || tecnologias || "",
+          tecnologias: tecnologias || tecnologias_usadas || "",
+          usuario_id,
+          imagem,
+          imagem_url: montarUrlImagem(req, imagem_url),
+          destaque: 0,
+          curtidas: 0
+        }
       });
     }
   );
@@ -205,6 +319,74 @@ function buscarTotalCurtidas(projectId, res, curtido) {
     });
   });
 }
+
+/* ================================
+   DESTACAR / REMOVER DESTAQUE
+================================ */
+exports.toggleProjectDestaque = (req, res) => {
+  const projectId = Number(req.params.id);
+  const usuarioId = req.user.id;
+
+  if (!projectId) {
+    return res.status(400).json({
+      erro: "ID do projeto é obrigatório."
+    });
+  }
+
+  const verificarSql = `
+    SELECT id, usuario_id, destaque
+    FROM projects
+    WHERE id = ?
+  `;
+
+  db.query(verificarSql, [projectId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao verificar projeto",
+        detalhes: err.message
+      });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({
+        erro: "Projeto não encontrado."
+      });
+    }
+
+    const projeto = results[0];
+
+    if (Number(projeto.usuario_id) !== Number(usuarioId)) {
+      return res.status(403).json({
+        erro: "Você não tem permissão para destacar este projeto."
+      });
+    }
+
+    const novoDestaque = projeto.destaque ? 0 : 1;
+
+    const updateSql = `
+      UPDATE projects
+      SET destaque = ?
+      WHERE id = ?
+      AND usuario_id = ?
+    `;
+
+    db.query(updateSql, [novoDestaque, projectId, usuarioId], (errUpdate) => {
+      if (errUpdate) {
+        return res.status(500).json({
+          erro: "Erro ao atualizar destaque",
+          detalhes: errUpdate.message
+        });
+      }
+
+      res.json({
+        mensagem: novoDestaque
+          ? "Projeto destacado com sucesso!"
+          : "Destaque removido com sucesso!",
+        destaque: novoDestaque
+      });
+    });
+  });
+};
 
 /* ================================
    DELETAR PROJETO

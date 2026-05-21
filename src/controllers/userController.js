@@ -18,6 +18,19 @@ function montarUrlFoto(req, fotoPerfil) {
   return `${req.protocol}://${req.get("host")}${fotoPerfil}`;
 }
 
+function montarCaminhoFoto(req) {
+  if (!req.file) return null;
+
+  const caminhoArquivo = req.file.path.replace(/\\/g, "/");
+  const indexUploads = caminhoArquivo.indexOf("uploads/");
+
+  if (indexUploads === -1) {
+    return `/uploads/perfis/${req.file.filename}`;
+  }
+
+  return "/" + caminhoArquivo.substring(indexUploads);
+}
+
 /* ================================
    LISTAR USUÁRIOS
 ================================ */
@@ -82,15 +95,24 @@ exports.getUserSuggestions = (req, res) => {
 
   const sql = `
     SELECT 
-      u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil,
-      EXISTS (
-        SELECT 1 FROM seguidores s
-        WHERE s.seguidor_id = ? AND s.seguindo_id = u.id
-      ) AS seguindo
+      u.id, 
+      u.nome, 
+      u.email, 
+      u.tipo, 
+      u.bio, 
+      u.curso, 
+      u.semestre, 
+      u.foto_perfil,
+      0 AS seguindo
     FROM users u
     WHERE u.id <> ?
+    AND u.id NOT IN (
+      SELECT s.seguindo_id
+      FROM seguidores s
+      WHERE s.seguidor_id = ?
+    )
     ORDER BY RAND()
-    LIMIT 5
+    LIMIT 3
   `;
 
   db.query(sql, [usuarioLogadoId, usuarioLogadoId], (err, results) => {
@@ -244,7 +266,6 @@ exports.getUserPosts = (req, res) => {
 
 /* ================================
    PROJETOS DO USUÁRIO
-   Se sua tabela for "projetos", troque projects por projetos.
 ================================ */
 exports.getUserProjects = (req, res) => {
   const usuarioId = Number(req.params.id);
@@ -319,10 +340,12 @@ exports.updateMyProfile = (req, res) => {
   const { nome, bio, curso, semestre } = req.body;
 
   if (!nome || !nome.trim()) {
-    return res.status(400).json({ erro: "O nome é obrigatório." });
+    return res.status(400).json({
+      erro: "O nome é obrigatório."
+    });
   }
 
-  const fotoPerfil = req.file ? `/uploads/perfis/${req.file.filename}` : null;
+  const fotoPerfil = montarCaminhoFoto(req);
 
   const sql = fotoPerfil
     ? `
@@ -466,14 +489,18 @@ exports.login = (req, res) => {
     if (err) return res.status(500).json({ erro: err.message });
 
     if (results.length === 0) {
-      return res.status(401).json({ erro: "Usuário não encontrado" });
+      return res.status(401).json({
+        erro: "Usuário não encontrado"
+      });
     }
 
     const user = results[0];
     const senhaValida = await bcrypt.compare(senha, user.senha);
 
     if (!senhaValida) {
-      return res.status(401).json({ erro: "Senha incorreta" });
+      return res.status(401).json({
+        erro: "Senha incorreta"
+      });
     }
 
     const token = jwt.sign(
@@ -525,11 +552,15 @@ exports.followUser = (req, res) => {
   const seguindoId = Number(req.params.id);
 
   if (!seguindoId) {
-    return res.status(400).json({ erro: "ID do usuário é obrigatório." });
+    return res.status(400).json({
+      erro: "ID do usuário é obrigatório."
+    });
   }
 
   if (Number(seguidorId) === Number(seguindoId)) {
-    return res.status(400).json({ erro: "Você não pode seguir a si mesmo." });
+    return res.status(400).json({
+      erro: "Você não pode seguir a si mesmo."
+    });
   }
 
   const verificarUsuarioSql = `
@@ -540,7 +571,9 @@ exports.followUser = (req, res) => {
     if (err) return res.status(500).json({ erro: err.message });
 
     if (users.length === 0) {
-      return res.status(404).json({ erro: "Usuário não encontrado." });
+      return res.status(404).json({
+        erro: "Usuário não encontrado."
+      });
     }
 
     const sql = `
@@ -568,7 +601,9 @@ exports.unfollowUser = (req, res) => {
   const seguindoId = Number(req.params.id);
 
   if (!seguindoId) {
-    return res.status(400).json({ erro: "ID do usuário é obrigatório." });
+    return res.status(400).json({
+      erro: "ID do usuário é obrigatório."
+    });
   }
 
   const sql = `
@@ -583,6 +618,67 @@ exports.unfollowUser = (req, res) => {
     res.json({
       mensagem: "Usuário deixado de seguir com sucesso.",
       seguindo: 0
+    });
+  });
+};
+
+/* ================================
+   ALTERAR TIPO DE USUÁRIO
+   Apenas admin principal
+================================ */
+exports.updateUserTipo = (req, res) => {
+  const adminLogado = req.user;
+
+  // Segurança extra
+  if (adminLogado.tipo !== "admin") {
+    return res.status(403).json({
+      erro: "Apenas o admin principal pode alterar permissões."
+    });
+  }
+
+  const usuarioId = Number(req.params.id);
+  const { tipo } = req.body;
+
+  const tiposPermitidos = [
+    "aluno",
+    "professor",
+    "admin",
+    "admin_eventos",
+    "admin_noticias",
+    "admin_projetos",
+    "admin_feed"
+  ];
+
+  if (!tiposPermitidos.includes(tipo)) {
+    return res.status(400).json({
+      erro: "Tipo de usuário inválido."
+    });
+  }
+
+  const sql = `
+    UPDATE users
+    SET tipo = ?
+    WHERE id = ?
+  `;
+
+  db.query(sql, [tipo, usuarioId], (err, result) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao atualizar tipo do usuário",
+        detalhes: err.message
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        erro: "Usuário não encontrado."
+      });
+    }
+
+    res.json({
+      mensagem: "Tipo de usuário atualizado com sucesso.",
+      usuarioId,
+      novoTipo: tipo
     });
   });
 };

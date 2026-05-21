@@ -8,6 +8,8 @@
 -- ✔ Eventos
 -- ✔ Notícias
 -- ✔ Curtidas em notícias
+-- ✔ Admin específico por página
+-- ✔ Denúncias de posts e projetos
 -- ==========================================
 
 CREATE DATABASE IF NOT EXISTS ecohub
@@ -20,6 +22,7 @@ USE ecohub;
 -- APAGAR TABELAS ANTIGAS
 -- ==========================================
 
+DROP TABLE IF EXISTS reports;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS event_comments;
 DROP TABLE IF EXISTS project_comments;
@@ -54,7 +57,11 @@ CREATE TABLE users (
     tipo ENUM(
         'aluno',
         'professor',
-        'admin'
+        'admin',
+        'admin_eventos',
+        'admin_noticias',
+        'admin_projetos',
+        'admin_feed'
     ) DEFAULT 'aluno',
 
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -174,8 +181,12 @@ CREATE TABLE projects (
     tecnologias_usadas VARCHAR(500) DEFAULT NULL,
     tecnologias VARCHAR(500) DEFAULT NULL,
 
-    imagem VARCHAR(500) DEFAULT NULL,
-    imagem_url VARCHAR(500) DEFAULT NULL,
+    -- imagem agora é obrigatória
+    imagem VARCHAR(500) NOT NULL,
+    imagem_url VARCHAR(500) NOT NULL,
+
+    -- estrela/destaque do projeto
+    destaque TINYINT(1) NOT NULL DEFAULT 0,
 
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
@@ -193,7 +204,6 @@ CREATE TABLE projects (
         REFERENCES users(id)
         ON DELETE SET NULL
 );
-
 -- ==========================================
 -- 6. CURTIDAS DOS PROJETOS
 -- ==========================================
@@ -530,8 +540,43 @@ CREATE TABLE seguidores (
         ON DELETE CASCADE
 );
 
+
 -- ==========================================
--- 15. NOTIFICAÇÕES
+-- 15. TABELA DE DENÚNCIAS
+-- ==========================================
+
+CREATE TABLE reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    usuario_id INT NOT NULL,
+
+    tipo ENUM(
+        'post',
+        'projeto'
+    ) NOT NULL,
+
+    referencia_id INT NOT NULL,
+
+    motivo VARCHAR(255) NOT NULL,
+    descricao TEXT DEFAULT NULL,
+
+    status ENUM(
+        'pendente',
+        'analisado',
+        'removido'
+    ) DEFAULT 'pendente',
+
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_reports_usuario
+        FOREIGN KEY (usuario_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+
+-- ==========================================
+-- 16. NOTIFICAÇÕES
 -- ==========================================
 
 CREATE TABLE notifications (

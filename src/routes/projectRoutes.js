@@ -4,6 +4,9 @@ const router = express.Router();
 const projectController = require("../controllers/projectController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
+const adminPageMiddleware = require("../middlewares/adminPageMiddleware");
+
+const adminProjetos = adminPageMiddleware("admin_projetos");
 
 /**
  * @swagger
@@ -24,26 +27,68 @@ const upload = require("../middlewares/uploadMiddleware");
  *           type: string
  *         imagem:
  *           type: string
+ *         destaque:
+ *           type: integer
  */
 
-// Listar todos os projetos
+/* ==========================================
+   LISTAR TODOS OS PROJETOS
+   filtros:
+   ?ordem=recentes
+   ?ordem=antigos
+   ?ordem=curtidos
+========================================== */
 router.get("/", projectController.getProjects);
 
-// Listar projetos do usuário logado
-router.get("/meus", authMiddleware, projectController.getMyProjects);
+/* ==========================================
+   LISTAR PROJETOS DO USUÁRIO LOGADO
+========================================== */
+router.get(
+  "/meus",
+  authMiddleware,
+  projectController.getMyProjects
+);
 
-// Criar projeto
+/* ==========================================
+   CRIAR PROJETO
+   imagem obrigatória
+========================================== */
 router.post(
   "/",
   authMiddleware,
+  adminProjetos,
   upload.single("imagem"),
   projectController.createProject
 );
 
-// Curtir ou remover curtida do projeto
-router.post("/:id/like", authMiddleware, projectController.toggleProjectLike);
+/* ==========================================
+   CURTIR / REMOVER CURTIDA
+========================================== */
+router.post(
+  "/:id/like",
+  authMiddleware,
+  projectController.toggleProjectLike
+);
 
-// Deletar projeto
-router.delete("/:id", authMiddleware, projectController.deleteProject);
+/* ==========================================
+   DESTACAR / REMOVER DESTAQUE
+   estrela do projeto
+========================================== */
+router.put(
+  "/:id/destaque",
+  authMiddleware,
+  adminProjetos,
+  projectController.toggleProjectDestaque
+);
+
+/* ==========================================
+   DELETAR PROJETO
+========================================== */
+router.delete(
+  "/:id",
+  authMiddleware,
+  adminProjetos,
+  projectController.deleteProject
+);
 
 module.exports = router;
