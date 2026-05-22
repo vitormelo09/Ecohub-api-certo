@@ -12,6 +12,9 @@ router.get("/post/:postId", authMiddleware, commentController.getCommentsByPost)
 /* Criar comentário */
 router.post("/", authMiddleware, commentController.createComment);
 
+/* Curtir/descurtir comentário */
+router.post("/:id/like", authMiddleware, commentController.toggleLikeComentario);
+
 /* Editar comentário */
 router.put("/:id", authMiddleware, commentController.updateComment);
 

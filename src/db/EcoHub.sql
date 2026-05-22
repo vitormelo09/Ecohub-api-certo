@@ -24,6 +24,7 @@ USE ecohub;
 
 DROP TABLE IF EXISTS reports;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS comment_likes;
 DROP TABLE IF EXISTS event_comments;
 DROP TABLE IF EXISTS project_comments;
 DROP TABLE IF EXISTS event_participants;
@@ -162,6 +163,32 @@ CREATE TABLE likes (
 
     CONSTRAINT fk_likes_user
         FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+
+-- ==========================================
+-- 4.1 CURTIDAS DOS COMENTÁRIOS
+-- ==========================================
+
+CREATE TABLE comment_likes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    comentario_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY unique_comment_like (comentario_id, usuario_id),
+
+    CONSTRAINT fk_comment_likes_comment
+        FOREIGN KEY (comentario_id)
+        REFERENCES comments(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_comment_likes_usuario
+        FOREIGN KEY (usuario_id)
         REFERENCES users(id)
         ON DELETE CASCADE
 );
