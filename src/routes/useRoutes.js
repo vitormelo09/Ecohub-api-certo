@@ -94,6 +94,24 @@ router.put(
   userController.updateMyProfile
 );
 
+/* ================================
+   POST FIXADO NO PERFIL
+================================ */
+
+// Fixar post existente no perfil
+router.put(
+  "/me/fixar-post",
+  authMiddleware,
+  userController.fixarPostPerfil
+);
+
+// Remover post fixado do perfil
+router.delete(
+  "/me/fixar-post",
+  authMiddleware,
+  userController.removerPostFixado
+);
+
 // Cadastro
 router.post("/register", userController.createUser);
 

@@ -9,6 +9,13 @@ const authMiddleware = require("../middlewares/authMiddleware");
 /* Buscar comentários de um post */
 router.get("/post/:postId", authMiddleware, commentController.getCommentsByPost);
 
+/* Meus comentários */
+router.get(
+  "/meus",
+  authMiddleware,
+  commentController.getMeusComentarios
+);
+
 /* Criar comentário */
 router.post("/", authMiddleware, commentController.createComment);
 

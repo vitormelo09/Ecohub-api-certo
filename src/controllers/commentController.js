@@ -291,3 +291,56 @@ exports.deleteComment = (req, res) => {
     });
   });
 };
+
+/* ================================
+   LISTAR MEUS COMENTÁRIOS
+================================ */
+exports.getMeusComentarios = (req, res) => {
+  const usuarioId = req.user.id;
+
+  const sql = `
+    SELECT 
+      c.id,
+      c.post_id,
+      c.usuario_id,
+      c.texto,
+      c.data_criacao,
+
+      p.conteudo AS post_conteudo,
+
+      u.nome,
+      u.email,
+
+      COUNT(cl.id) AS likes
+
+    FROM comments c
+    INNER JOIN posts p ON p.id = c.post_id
+    INNER JOIN users u ON u.id = c.usuario_id
+    LEFT JOIN comment_likes cl ON cl.comentario_id = c.id
+
+    WHERE c.usuario_id = ?
+
+    GROUP BY 
+      c.id,
+      c.post_id,
+      c.usuario_id,
+      c.texto,
+      c.data_criacao,
+      p.conteudo,
+      u.nome,
+      u.email
+
+    ORDER BY c.data_criacao DESC
+  `;
+
+  db.query(sql, [usuarioId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar seus comentários",
+        detalhes: err.message
+      });
+    }
+
+    res.json(results);
+  });
+};

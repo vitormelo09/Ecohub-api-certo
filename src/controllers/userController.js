@@ -138,7 +138,16 @@ exports.getMe = (req, res) => {
 
   const sql = `
     SELECT 
-      u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil, u.data_criacao,
+      u.id,
+      u.nome,
+      u.email,
+      u.tipo,
+      u.bio,
+      u.curso,
+      u.semestre,
+      u.foto_perfil,
+      u.data_criacao,
+      u.post_fixado_id,
 
       (SELECT COUNT(*) FROM seguidores WHERE seguindo_id = u.id) AS seguidores,
       (SELECT COUNT(*) FROM seguidores WHERE seguidor_id = u.id) AS seguindo,
@@ -149,15 +158,94 @@ exports.getMe = (req, res) => {
   `;
 
   db.query(sql, [usuarioId], (err, results) => {
-    if (err) return res.status(500).json({ erro: err.message });
-
-    if (results.length === 0) {
-      return res.status(404).json({ erro: "Usuário não encontrado" });
+    if (err) {
+      return res.status(500).json({
+        erro: err.message
+      });
     }
 
-    res.json({
-      ...results[0],
-      foto_perfil_url: montarUrlFoto(req, results[0].foto_perfil)
+    if (results.length === 0) {
+      return res.status(404).json({
+        erro: "Usuário não encontrado"
+      });
+    }
+
+    const user = results[0];
+
+    // Se não tiver post fixado
+    if (!user.post_fixado_id) {
+      return res.json({
+        ...user,
+        post_fixado: null,
+        foto_perfil_url: montarUrlFoto(req, user.foto_perfil)
+      });
+    }
+
+    // Buscar post fixado
+    const postSql = `
+      SELECT 
+        p.id,
+        p.usuario_id,
+        p.conteudo,
+        p.imagem_url,
+        p.data_publicacao,
+
+        u.nome,
+        u.email,
+        u.foto_perfil,
+
+        COUNT(DISTINCT l.id) AS likes
+
+      FROM posts p
+
+      INNER JOIN users u 
+        ON u.id = p.usuario_id
+
+      LEFT JOIN likes l 
+        ON l.post_id = p.id
+
+      WHERE p.id = ?
+
+      GROUP BY
+        p.id,
+        p.usuario_id,
+        p.conteudo,
+        p.imagem_url,
+        p.data_publicacao,
+        u.nome,
+        u.email,
+        u.foto_perfil
+    `;
+
+    db.query(postSql, [user.post_fixado_id], (errPost, postResults) => {
+
+      if (errPost) {
+        return res.status(500).json({
+          erro: "Erro ao buscar post fixado",
+          detalhes: errPost.message
+        });
+      }
+
+      const postFixado = postResults[0] || null;
+
+      res.json({
+        ...user,
+
+        post_fixado: postFixado
+          ? {
+              ...postFixado,
+              foto_perfil_url: montarUrlFoto(
+                req,
+                postFixado.foto_perfil
+              )
+            }
+          : null,
+
+        foto_perfil_url: montarUrlFoto(
+          req,
+          user.foto_perfil
+        )
+      });
     });
   });
 };
@@ -679,6 +767,179 @@ exports.updateUserTipo = (req, res) => {
       mensagem: "Tipo de usuário atualizado com sucesso.",
       usuarioId,
       novoTipo: tipo
+    });
+  });
+};
+
+/* ================================
+   FIXAR COMENTÁRIO NO PERFIL
+================================ */
+exports.fixarComentarioPerfil = (req, res) => {
+  const usuarioId = req.user.id;
+  const { comentarioId } = req.body;
+
+  if (!comentarioId) {
+    return res.status(400).json({
+      erro: "ID do comentário é obrigatório."
+    });
+  }
+
+  const verificarSql = `
+    SELECT id, usuario_id
+    FROM comments
+    WHERE id = ?
+  `;
+
+  db.query(verificarSql, [comentarioId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao verificar comentário",
+        detalhes: err.message
+      });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({
+        erro: "Comentário não encontrado."
+      });
+    }
+
+    if (Number(results[0].usuario_id) !== Number(usuarioId)) {
+      return res.status(403).json({
+        erro: "Você só pode fixar comentários feitos por você."
+      });
+    }
+
+    const sql = `
+      UPDATE users
+      SET comentario_fixado_id = ?
+      WHERE id = ?
+    `;
+
+    db.query(sql, [comentarioId, usuarioId], (err2) => {
+      if (err2) {
+        return res.status(500).json({
+          erro: "Erro ao fixar comentário",
+          detalhes: err2.message
+        });
+      }
+
+      res.json({
+        mensagem: "Comentário fixado com sucesso!",
+        comentario_fixado_id: comentarioId
+      });
+    });
+  });
+};
+
+/* ================================
+   REMOVER COMENTÁRIO FIXADO
+================================ */
+exports.removerComentarioFixado = (req, res) => {
+  const usuarioId = req.user.id;
+
+  const sql = `
+    UPDATE users
+    SET comentario_fixado_id = NULL
+    WHERE id = ?
+  `;
+
+  db.query(sql, [usuarioId], (err) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao remover comentário fixado",
+        detalhes: err.message
+      });
+    }
+
+    res.json({
+      mensagem: "Comentário fixado removido com sucesso!"
+    });
+  });
+};
+
+/* ================================
+   FIXAR POST NO PERFIL
+================================ */
+exports.fixarPostPerfil = (req, res) => {
+  const usuarioId = req.user.id;
+  const { postId } = req.body;
+
+  if (!postId) {
+    return res.status(400).json({
+      erro: "ID do post é obrigatório."
+    });
+  }
+
+  const verificarSql = `
+    SELECT id, usuario_id
+    FROM posts
+    WHERE id = ?
+  `;
+
+  db.query(verificarSql, [postId], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao verificar post",
+        detalhes: err.message
+      });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({
+        erro: "Post não encontrado."
+      });
+    }
+
+    if (Number(results[0].usuario_id) !== Number(usuarioId)) {
+      return res.status(403).json({
+        erro: "Você só pode fixar posts seus."
+      });
+    }
+
+    const sql = `
+      UPDATE users
+      SET post_fixado_id = ?
+      WHERE id = ?
+    `;
+
+    db.query(sql, [postId, usuarioId], (err2) => {
+      if (err2) {
+        return res.status(500).json({
+          erro: "Erro ao fixar post",
+          detalhes: err2.message
+        });
+      }
+
+      res.json({
+        mensagem: "Post fixado com sucesso!"
+      });
+    });
+  });
+};
+
+/* ================================
+   REMOVER POST FIXADO
+================================ */
+exports.removerPostFixado = (req, res) => {
+  const usuarioId = req.user.id;
+
+  const sql = `
+    UPDATE users
+    SET post_fixado_id = NULL
+    WHERE id = ?
+  `;
+
+  db.query(sql, [usuarioId], (err) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao remover post fixado",
+        detalhes: err.message
+      });
+    }
+
+    res.json({
+      mensagem: "Post removido do perfil!"
     });
   });
 };

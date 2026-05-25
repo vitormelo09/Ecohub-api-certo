@@ -134,6 +134,18 @@ CREATE TABLE comments (
 );
 
 -- ==========================================
+-- 3.1 COMENTÁRIO FIXADO NO PERFIL
+-- ==========================================
+
+ALTER TABLE users
+ADD COLUMN post_fixado_id INT DEFAULT NULL;
+
+ALTER TABLE users
+ADD CONSTRAINT fk_users_post_fixado
+FOREIGN KEY (post_fixado_id)
+REFERENCES posts(id)
+ON DELETE SET NULL;
+-- ==========================================
 -- 4. TABELA DE CURTIDAS DOS POSTS
 -- ==========================================
 
