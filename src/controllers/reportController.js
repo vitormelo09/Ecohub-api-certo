@@ -1,13 +1,38 @@
 const db = require("../config/db");
 
 /* ================================
+   MONTAR URL FOTO
+================================ */
+function montarUrlFoto(req, foto) {
+  if (!foto) return null;
+
+  if (String(foto).startsWith("http")) {
+    return foto;
+  }
+
+  if (String(foto).startsWith("/uploads")) {
+    return `${req.protocol}://${req.get("host")}${foto}`;
+  }
+
+  if (String(foto).startsWith("uploads")) {
+    return `${req.protocol}://${req.get("host")}/${foto}`;
+  }
+
+  return null;
+}
+
+/* ================================
    CRIAR DENÚNCIA
 ================================ */
 exports.createReport = (req, res) => {
   const usuarioId = req.user.id;
   const { tipo, referencia_id, motivo, descricao } = req.body;
 
-  const tiposPermitidos = ["post", "projeto"];
+  const tiposPermitidos = [
+    "post",
+    "projeto",
+    "perfil"
+  ];
 
   if (!tiposPermitidos.includes(tipo)) {
     return res.status(400).json({
@@ -29,7 +54,13 @@ exports.createReport = (req, res) => {
 
   db.query(
     sql,
-    [usuarioId, tipo, referencia_id, motivo, descricao || null],
+    [
+      usuarioId,
+      tipo,
+      referencia_id,
+      motivo,
+      descricao || null
+    ],
     (err, result) => {
       if (err) {
         return res.status(500).json({
@@ -60,10 +91,55 @@ exports.getReports = (req, res) => {
   const sql = `
     SELECT
       r.*,
-      u.nome AS denunciante_nome,
-      u.email AS denunciante_email
+
+      denunciante.nome AS denunciante_nome,
+      denunciante.email AS denunciante_email,
+      denunciante.foto_perfil AS denunciante_foto,
+
+      COALESCE(
+        usuario_post.nome,
+        usuario_projeto.nome,
+        usuario_perfil.nome
+      ) AS denunciado_nome,
+
+      COALESCE(
+        usuario_post.email,
+        usuario_projeto.email,
+        usuario_perfil.email
+      ) AS denunciado_email,
+
+      COALESCE(
+        usuario_post.foto_perfil,
+        usuario_projeto.foto_perfil,
+        usuario_perfil.foto_perfil
+      ) AS denunciado_foto,
+
+      posts.conteudo AS post_conteudo,
+      projects.titulo AS projeto_titulo
+
     FROM reports r
-    INNER JOIN users u ON u.id = r.usuario_id
+
+    INNER JOIN users denunciante
+      ON denunciante.id = r.usuario_id
+
+    LEFT JOIN posts
+      ON posts.id = r.referencia_id
+      AND r.tipo = 'post'
+
+    LEFT JOIN users usuario_post
+      ON usuario_post.id = posts.usuario_id
+
+    LEFT JOIN projects
+      ON projects.id = r.referencia_id
+      AND r.tipo = 'projeto'
+
+    LEFT JOIN users usuario_projeto
+      ON usuario_projeto.id = projects.usuario_id
+
+    LEFT JOIN users usuario_perfil
+      ON usuario_perfil.id = r.referencia_id
+      AND r.tipo = 'perfil'
+
     ORDER BY r.data_criacao DESC
   `;
 
@@ -75,7 +151,21 @@ exports.getReports = (req, res) => {
       });
     }
 
-    res.json(results);
+    const denuncias = results.map((denuncia) => ({
+      ...denuncia,
+
+      denunciante_foto_url: montarUrlFoto(
+        req,
+        denuncia.denunciante_foto
+      ),
+
+      denunciado_foto_url: montarUrlFoto(
+        req,
+        denuncia.denunciado_foto
+      )
+    }));
+
+    res.json(denuncias);
   });
 };
 
@@ -93,7 +183,11 @@ exports.updateReportStatus = (req, res) => {
   const reportId = Number(req.params.id);
   const { status } = req.body;
 
-  const statusPermitidos = ["pendente", "analisado", "removido"];
+  const statusPermitidos = [
+    "pendente",
+    "analisado",
+    "removido"
+  ];
 
   if (!statusPermitidos.includes(status)) {
     return res.status(400).json({

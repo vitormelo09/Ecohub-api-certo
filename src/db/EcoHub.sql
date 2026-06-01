@@ -9,7 +9,8 @@
 -- ✔ Notícias
 -- ✔ Curtidas em notícias
 -- ✔ Admin específico por página
--- ✔ Denúncias de posts e projetos
+-- ✔ Denúncias de posts, projetos e perfis
+-- ✔ Aprovação de projetos
 -- ==========================================
 
 CREATE DATABASE IF NOT EXISTS ecohub
@@ -134,7 +135,7 @@ CREATE TABLE comments (
 );
 
 -- ==========================================
--- 3.1 COMENTÁRIO FIXADO NO PERFIL
+-- 3.1 POST FIXADO NO PERFIL
 -- ==========================================
 
 ALTER TABLE users
@@ -145,6 +146,7 @@ ADD CONSTRAINT fk_users_post_fixado
 FOREIGN KEY (post_fixado_id)
 REFERENCES posts(id)
 ON DELETE SET NULL;
+
 -- ==========================================
 -- 4. TABELA DE CURTIDAS DOS POSTS
 -- ==========================================
@@ -227,6 +229,17 @@ CREATE TABLE projects (
     -- estrela/destaque do projeto
     destaque TINYINT(1) NOT NULL DEFAULT 0,
 
+    -- aprovação dos projetos
+    status ENUM(
+        'pendente',
+        'aprovado',
+        'rejeitado'
+    ) NOT NULL DEFAULT 'pendente',
+
+    motivo_rejeicao TEXT DEFAULT NULL,
+    aprovado_por INT DEFAULT NULL,
+    data_aprovacao DATETIME DEFAULT NULL,
+
     usuario_id INT DEFAULT NULL,
     user_id INT DEFAULT NULL,
 
@@ -241,8 +254,19 @@ CREATE TABLE projects (
     CONSTRAINT fk_projects_user
         FOREIGN KEY (user_id)
         REFERENCES users(id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_projects_aprovado_por
+        FOREIGN KEY (aprovado_por)
+        REFERENCES users(id)
         ON DELETE SET NULL
 );
+
+-- ÍNDICES DOS PROJETOS
+CREATE INDEX idx_projects_status ON projects(status);
+CREATE INDEX idx_projects_usuario ON projects(usuario_id);
+CREATE INDEX idx_projects_aprovador ON projects(aprovado_por);
+
 -- ==========================================
 -- 6. CURTIDAS DOS PROJETOS
 -- ==========================================
@@ -579,7 +603,6 @@ CREATE TABLE seguidores (
         ON DELETE CASCADE
 );
 
-
 -- ==========================================
 -- 15. TABELA DE DENÚNCIAS
 -- ==========================================
@@ -591,7 +614,8 @@ CREATE TABLE reports (
 
     tipo ENUM(
         'post',
-        'projeto'
+        'projeto',
+        'perfil'
     ) NOT NULL,
 
     referencia_id INT NOT NULL,
@@ -613,6 +637,12 @@ CREATE TABLE reports (
         REFERENCES users(id)
         ON DELETE CASCADE
 );
+
+-- ÍNDICES DAS DENÚNCIAS
+CREATE INDEX idx_reports_tipo ON reports(tipo);
+CREATE INDEX idx_reports_status ON reports(status);
+CREATE INDEX idx_reports_usuario ON reports(usuario_id);
+CREATE INDEX idx_reports_referencia ON reports(referencia_id);
 
 -- ==========================================
 -- 16. NOTIFICAÇÕES

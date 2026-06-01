@@ -8,35 +8,8 @@ const adminPageMiddleware = require("../middlewares/adminPageMiddleware");
 
 const adminProjetos = adminPageMiddleware("admin_projetos");
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     Project:
- *       type: object
- *       properties:
- *         id:
- *           type: integer
- *         titulo:
- *           type: string
- *         descricao:
- *           type: string
- *         link_github:
- *           type: string
- *         tecnologias_usadas:
- *           type: string
- *         imagem:
- *           type: string
- *         destaque:
- *           type: integer
- */
-
 /* ==========================================
-   LISTAR TODOS OS PROJETOS
-   filtros:
-   ?ordem=recentes
-   ?ordem=antigos
-   ?ordem=curtidos
+   LISTAR TODOS OS PROJETOS APROVADOS
 ========================================== */
 router.get("/", projectController.getProjects);
 
@@ -50,15 +23,45 @@ router.get(
 );
 
 /* ==========================================
+   LISTAR PROJETOS PENDENTES
+   admin geral ou admin_projetos
+========================================== */
+router.get(
+  "/pendentes",
+  authMiddleware,
+  adminProjetos,
+  projectController.getProjetosPendentes
+);
+
+/* ==========================================
    CRIAR PROJETO
-   imagem obrigatória
+   agora entra como pendente
 ========================================== */
 router.post(
   "/",
   authMiddleware,
-  adminProjetos,
   upload.single("imagem"),
   projectController.createProject
+);
+
+/* ==========================================
+   APROVAR PROJETO
+========================================== */
+router.put(
+  "/:id/aprovar",
+  authMiddleware,
+  adminProjetos,
+  projectController.aprovarProjeto
+);
+
+/* ==========================================
+   REJEITAR PROJETO
+========================================== */
+router.put(
+  "/:id/rejeitar",
+  authMiddleware,
+  adminProjetos,
+  projectController.rejeitarProjeto
 );
 
 /* ==========================================
@@ -72,12 +75,10 @@ router.post(
 
 /* ==========================================
    DESTACAR / REMOVER DESTAQUE
-   estrela do projeto
 ========================================== */
 router.put(
   "/:id/destaque",
   authMiddleware,
-  adminProjetos,
   projectController.toggleProjectDestaque
 );
 
@@ -87,7 +88,6 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  adminProjetos,
   projectController.deleteProject
 );
 

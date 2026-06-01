@@ -258,8 +258,17 @@ exports.getUserProfile = (req, res) => {
   const perfilId = Number(req.params.id);
 
   const sql = `
-    SELECT 
-      u.id, u.nome, u.email, u.tipo, u.bio, u.curso, u.semestre, u.foto_perfil, u.data_criacao,
+    SELECT
+      u.id,
+      u.nome,
+      u.email,
+      u.tipo,
+      u.bio,
+      u.curso,
+      u.semestre,
+      u.foto_perfil,
+      u.data_criacao,
+      u.post_fixado_id,
 
       (SELECT COUNT(*) FROM seguidores WHERE seguindo_id = u.id) AS seguidores,
       (SELECT COUNT(*) FROM seguidores WHERE seguidor_id = u.id) AS seguindo,
@@ -281,9 +290,57 @@ exports.getUserProfile = (req, res) => {
       return res.status(404).json({ erro: "Usuário não encontrado" });
     }
 
-    res.json({
-      ...results[0],
-      foto_perfil_url: montarUrlFoto(req, results[0].foto_perfil)
+    const user = results[0];
+
+    if (!user.post_fixado_id) {
+      return res.json({
+        ...user,
+        post_fixado: null,
+        foto_perfil_url: montarUrlFoto(req, user.foto_perfil)
+      });
+    }
+
+    const postSql = `
+      SELECT 
+        p.id,
+        p.usuario_id,
+        p.conteudo,
+        p.imagem_url,
+        p.data_publicacao,
+        u.nome,
+        u.email,
+        u.foto_perfil,
+        COUNT(DISTINCT l.id) AS likes
+      FROM posts p
+      INNER JOIN users u ON u.id = p.usuario_id
+      LEFT JOIN likes l ON l.post_id = p.id
+      WHERE p.id = ?
+      GROUP BY
+        p.id,
+        p.usuario_id,
+        p.conteudo,
+        p.imagem_url,
+        p.data_publicacao,
+        u.nome,
+        u.email,
+        u.foto_perfil
+    `;
+
+    db.query(postSql, [user.post_fixado_id], (errPost, postResults) => {
+      if (errPost) {
+        return res.status(500).json({
+          erro: "Erro ao buscar post fixado",
+          detalhes: errPost.message
+        });
+      }
+
+      const postFixado = postResults[0] || null;
+
+      return res.json({
+        ...user,
+        post_fixado: postFixado,
+        foto_perfil_url: montarUrlFoto(req, user.foto_perfil)
+      });
     });
   });
 };
@@ -351,7 +408,6 @@ exports.getUserPosts = (req, res) => {
     })));
   });
 };
-
 /* ================================
    PROJETOS DO USUÁRIO
 ================================ */

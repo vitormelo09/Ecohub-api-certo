@@ -14,11 +14,20 @@ function montarUrlImagem(req, imagem) {
 }
 
 /* ================================
-   LISTAR TODOS OS PROJETOS
-   filtros:
-   ?ordem=recentes
-   ?ordem=antigos
-   ?ordem=curtidos
+   VERIFICAR ADMIN DE PROJETOS
+================================ */
+function podeAvaliarProjetos(req) {
+  return (
+    req.user &&
+    (
+      req.user.tipo === "admin" ||
+      req.user.tipo === "admin_projetos"
+    )
+  );
+}
+
+/* ================================
+   LISTAR TODOS OS PROJETOS APROVADOS
 ================================ */
 exports.getProjects = (req, res) => {
   const ordem = req.query.ordem || "recentes";
@@ -60,6 +69,7 @@ exports.getProjects = (req, res) => {
       FROM project_likes
       GROUP BY project_id
     ) l ON l.project_id = p.id
+    WHERE p.status = 'aprovado'
     ${orderBy}
   `;
 
@@ -142,8 +152,46 @@ exports.getMyProjects = (req, res) => {
 };
 
 /* ================================
+   LISTAR PROJETOS PENDENTES
+   admin / admin_projetos
+================================ */
+exports.getProjetosPendentes = (req, res) => {
+  if (!podeAvaliarProjetos(req)) {
+    return res.status(403).json({
+      erro: "Apenas admin geral ou admin de projetos pode ver projetos pendentes."
+    });
+  }
+
+  const sql = `
+    SELECT
+      p.*,
+      u.nome AS autor_nome,
+      u.email AS autor_email
+    FROM projects p
+    LEFT JOIN users u ON u.id = p.usuario_id
+    WHERE p.status = 'pendente'
+    ORDER BY p.data_criacao DESC
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar projetos pendentes",
+        detalhes: err.message
+      });
+    }
+
+    res.json(results.map(project => ({
+      ...project,
+      imagem_url: montarUrlImagem(req, project.imagem_url || project.imagem)
+    })));
+  });
+};
+
+/* ================================
    CRIAR PROJETO
    imagem obrigatória
+   status: pendente
 ================================ */
 exports.createProject = (req, res) => {
   const {
@@ -169,9 +217,7 @@ exports.createProject = (req, res) => {
   }
 
   const caminhoArquivo = req.file.path.replace(/\\/g, "/");
-
   const indexUploads = caminhoArquivo.indexOf("uploads/");
-
   const caminhoPublico = "/" + caminhoArquivo.substring(indexUploads);
 
   const imagem = caminhoPublico;
@@ -188,9 +234,10 @@ exports.createProject = (req, res) => {
       usuario_id, 
       imagem,
       imagem_url,
-      destaque
+      destaque,
+      status
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'pendente')
   `;
 
   db.query(
@@ -214,7 +261,7 @@ exports.createProject = (req, res) => {
       }
 
       res.status(201).json({
-        mensagem: "Projeto criado!",
+        mensagem: "Projeto enviado para avaliação! Ele aparecerá no site após aprovação.",
         projeto: {
           id: result.insertId,
           titulo,
@@ -226,11 +273,113 @@ exports.createProject = (req, res) => {
           imagem,
           imagem_url: montarUrlImagem(req, imagem_url),
           destaque: 0,
+          status: "pendente",
           curtidas: 0
         }
       });
     }
   );
+};
+
+/* ================================
+   APROVAR PROJETO
+================================ */
+exports.aprovarProjeto = (req, res) => {
+  if (!podeAvaliarProjetos(req)) {
+    return res.status(403).json({
+      erro: "Apenas admin geral ou admin de projetos pode aprovar projetos."
+    });
+  }
+
+  const projetoId = Number(req.params.id);
+  const adminId = req.user.id;
+
+  if (!projetoId) {
+    return res.status(400).json({
+      erro: "ID do projeto é obrigatório."
+    });
+  }
+
+  const sql = `
+    UPDATE projects
+    SET 
+      status = 'aprovado',
+      motivo_rejeicao = NULL,
+      aprovado_por = ?,
+      data_aprovacao = NOW()
+    WHERE id = ?
+  `;
+
+  db.query(sql, [adminId, projetoId], (err, result) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao aprovar projeto",
+        detalhes: err.message
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        erro: "Projeto não encontrado."
+      });
+    }
+
+    res.json({
+      mensagem: "Projeto aprovado com sucesso!",
+      projetoId
+    });
+  });
+};
+
+/* ================================
+   REJEITAR PROJETO
+================================ */
+exports.rejeitarProjeto = (req, res) => {
+  if (!podeAvaliarProjetos(req)) {
+    return res.status(403).json({
+      erro: "Apenas admin geral ou admin de projetos pode rejeitar projetos."
+    });
+  }
+
+  const projetoId = Number(req.params.id);
+  const { motivo } = req.body;
+
+  if (!projetoId) {
+    return res.status(400).json({
+      erro: "ID do projeto é obrigatório."
+    });
+  }
+
+  const sql = `
+    UPDATE projects
+    SET 
+      status = 'rejeitado',
+      motivo_rejeicao = ?,
+      aprovado_por = NULL,
+      data_aprovacao = NULL
+    WHERE id = ?
+  `;
+
+  db.query(sql, [motivo || "Projeto rejeitado pelo administrador.", projetoId], (err, result) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao rejeitar projeto",
+        detalhes: err.message
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        erro: "Projeto não encontrado."
+      });
+    }
+
+    res.json({
+      mensagem: "Projeto rejeitado com sucesso!",
+      projetoId,
+      motivo: motivo || "Projeto rejeitado pelo administrador."
+    });
+  });
 };
 
 /* ================================
@@ -246,54 +395,81 @@ exports.toggleProjectLike = (req, res) => {
     });
   }
 
-  const verificarSql = `
-    SELECT id 
-    FROM project_likes 
-    WHERE project_id = ? 
-    AND usuario_id = ?
+  const verificarProjetoSql = `
+    SELECT id, status
+    FROM projects
+    WHERE id = ?
   `;
 
-  db.query(verificarSql, [projectId, usuarioId], (err, results) => {
-    if (err) {
+  db.query(verificarProjetoSql, [projectId], (errProjeto, projetoResults) => {
+    if (errProjeto) {
       return res.status(500).json({
-        erro: err.message
+        erro: "Erro ao verificar projeto",
+        detalhes: errProjeto.message
       });
     }
 
-    if (results.length > 0) {
-      const deleteSql = `
-        DELETE FROM project_likes 
-        WHERE project_id = ? 
-        AND usuario_id = ?
-      `;
-
-      db.query(deleteSql, [projectId, usuarioId], (errDelete) => {
-        if (errDelete) {
-          return res.status(500).json({
-            erro: errDelete.message
-          });
-        }
-
-        buscarTotalCurtidas(projectId, res, false);
+    if (projetoResults.length === 0) {
+      return res.status(404).json({
+        erro: "Projeto não encontrado."
       });
-
-      return;
     }
 
-    const insertSql = `
-      INSERT INTO project_likes 
-      (project_id, usuario_id)
-      VALUES (?, ?)
+    if (projetoResults[0].status !== "aprovado") {
+      return res.status(403).json({
+        erro: "Você só pode curtir projetos aprovados."
+      });
+    }
+
+    const verificarSql = `
+      SELECT id 
+      FROM project_likes 
+      WHERE project_id = ? 
+      AND usuario_id = ?
     `;
 
-    db.query(insertSql, [projectId, usuarioId], (errInsert) => {
-      if (errInsert) {
+    db.query(verificarSql, [projectId, usuarioId], (err, results) => {
+      if (err) {
         return res.status(500).json({
-          erro: errInsert.message
+          erro: err.message
         });
       }
 
-      buscarTotalCurtidas(projectId, res, true);
+      if (results.length > 0) {
+        const deleteSql = `
+          DELETE FROM project_likes 
+          WHERE project_id = ? 
+          AND usuario_id = ?
+        `;
+
+        db.query(deleteSql, [projectId, usuarioId], (errDelete) => {
+          if (errDelete) {
+            return res.status(500).json({
+              erro: errDelete.message
+            });
+          }
+
+          buscarTotalCurtidas(projectId, res, false);
+        });
+
+        return;
+      }
+
+      const insertSql = `
+        INSERT INTO project_likes 
+        (project_id, usuario_id)
+        VALUES (?, ?)
+      `;
+
+      db.query(insertSql, [projectId, usuarioId], (errInsert) => {
+        if (errInsert) {
+          return res.status(500).json({
+            erro: errInsert.message
+          });
+        }
+
+        buscarTotalCurtidas(projectId, res, true);
+      });
     });
   });
 };
@@ -334,7 +510,7 @@ exports.toggleProjectDestaque = (req, res) => {
   }
 
   const verificarSql = `
-    SELECT id, usuario_id, destaque
+    SELECT id, usuario_id, destaque, status
     FROM projects
     WHERE id = ?
   `;
@@ -358,6 +534,12 @@ exports.toggleProjectDestaque = (req, res) => {
     if (Number(projeto.usuario_id) !== Number(usuarioId)) {
       return res.status(403).json({
         erro: "Você não tem permissão para destacar este projeto."
+      });
+    }
+
+    if (projeto.status !== "aprovado") {
+      return res.status(403).json({
+        erro: "Você só pode destacar projetos aprovados."
       });
     }
 
@@ -417,7 +599,7 @@ exports.deleteProject = (req, res) => {
 
     const donoProjeto = results[0].usuario_id;
 
-    if (Number(donoProjeto) !== Number(usuario_id)) {
+    if (Number(donoProjeto) !== Number(usuario_id) && !podeAvaliarProjetos(req)) {
       return res.status(403).json({
         erro: "Você não tem permissão para excluir este projeto"
       });
@@ -425,11 +607,10 @@ exports.deleteProject = (req, res) => {
 
     const sqlExcluir = `
       DELETE FROM projects 
-      WHERE id = ? 
-      AND usuario_id = ?
+      WHERE id = ?
     `;
 
-    db.query(sqlExcluir, [id, usuario_id], (errDelete) => {
+    db.query(sqlExcluir, [id], (errDelete) => {
       if (errDelete) {
         return res.status(500).json({
           erro: "Erro ao excluir projeto",
