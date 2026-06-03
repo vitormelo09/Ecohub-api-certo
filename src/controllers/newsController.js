@@ -60,6 +60,57 @@ exports.getNews = (req, res) => {
 };
 
 /* ================================
+   BUSCAR NOTÍCIA POR ID
+================================ */
+exports.getNewsById = (req, res) => {
+  const { id } = req.params;
+
+  const sql = `
+    SELECT 
+      n.id,
+      n.titulo,
+      n.resumo,
+      n.conteudo_completo AS conteudo,
+      n.imagem_url AS imagem,
+      n.link,
+      n.categoria,
+      n.data_publicacao,
+      n.criador_id,
+      COUNT(nl.id) AS curtidas
+    FROM news n
+    LEFT JOIN news_likes nl ON nl.news_id = n.id
+    WHERE n.id = ?
+    GROUP BY 
+      n.id,
+      n.titulo,
+      n.resumo,
+      n.conteudo_completo,
+      n.imagem_url,
+      n.link,
+      n.categoria,
+      n.data_publicacao,
+      n.criador_id
+  `;
+
+  db.query(sql, [id], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        erro: "Erro ao buscar notícia",
+        detalhes: err.message
+      });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({
+        erro: "Notícia não encontrada"
+      });
+    }
+
+    res.json(results[0]);
+  });
+};
+
+/* ================================
    CRIAR NOTÍCIA
    APENAS ADMIN
 ================================ */

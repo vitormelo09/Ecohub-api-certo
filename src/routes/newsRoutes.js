@@ -35,6 +35,12 @@ const upload = multer({
 router.get("/", newsController.getNews);
 
 /* ================================
+   BUSCAR NOTÍCIA POR ID
+   Qualquer pessoa pode ver
+================================ */
+router.get("/:id", newsController.getNewsById);
+
+/* ================================
    CURTIR NOTÍCIA
    Usuário logado
 ================================ */
